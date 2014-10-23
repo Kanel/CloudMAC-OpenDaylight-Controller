@@ -41,9 +41,9 @@ public class PacketHandler implements IListenDataPacket
 		wtps = new WirelessTerminationPointManager();
 		flowUtil = new FlowUtility(null, null);
 		CLOUDMAC_ETHERNET_TYPE = 0x1337;
-		CLOUDMAC_FLOW_TIME = 10;
+		CLOUDMAC_FLOW_TIME = 120;
 		CLOUDMAC_FLOW_BLOCK_TIME = 2;
-		CLOUDMAC_FLOW_GRACETIME = 4;
+		CLOUDMAC_FLOW_GRACETIME = 10;
 		CLOUDMAC_ACCESS_POINT_EXPIRATION = 16000;
 		CLOUDMAC_ACCESS_POINT_EXPIRATION_GRACE = 4000;
 		CLOUDMAC_MOBILE_TERMINAL_TUNNEL_EXPIRATION = 15000;
@@ -177,6 +177,15 @@ public class PacketHandler implements IListenDataPacket
 				break;
 
 			case Management_Probe_Request:
+				if (!isPartOfTest(sourceMac))
+				{
+					log.trace("CloudMAC: Not part of test, blocking frames from {} to {}.", sourceMac, destinationMac);
+
+					flowUtil.block(ingressConnector, sourceMac, destinationMac, CLOUDMAC_FLOW_BLOCK_TIME);
+
+					break;
+				}
+
 				if (!tunnels.contains(sourceMac))
 				{
 					if (accessPoints.hasFree())
@@ -196,6 +205,15 @@ public class PacketHandler implements IListenDataPacket
 				break;
 
 			case Management_Association_request:
+				if (!isPartOfTest(sourceMac))
+				{
+					log.trace("CloudMAC: Not part of test, blocking frames from {} to {}.", sourceMac, destinationMac);
+
+					flowUtil.block(ingressConnector, sourceMac, destinationMac, CLOUDMAC_FLOW_BLOCK_TIME);
+
+					break;
+				}
+
 				if (tunnels.contains(sourceMac))
 				{
 					byte[] mac = tunnels.get(sourceMac).getAccessPoint().getMacAdress();
@@ -261,6 +279,16 @@ public class PacketHandler implements IListenDataPacket
 						wtps.add(ingressConnector, System.currentTimeMillis() + CLOUDMAC_WIRELESS_TERMINATION_POINT_EXPIRATION);
 					}
 				}
+
+				if (!isPartOfTest(sourceMac))
+				{
+					log.trace("CloudMAC: Not part of test, blocking frames from {} to {}.", sourceMac, destinationMac);
+
+					flowUtil.block(ingressConnector, sourceMac, destinationMac, CLOUDMAC_FLOW_BLOCK_TIME);
+
+					break;
+				}
+
 
 				// Does the traffic belong to a known tunnel?
 				if (tunnels.contains(sourceMac) && accessPoints.contains(destinationMac))

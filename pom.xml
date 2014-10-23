@@ -4,7 +4,7 @@
 	
 	<groupId>edu.kau.cloudmac</groupId>
 	<artifactId>controller</artifactId>
-	<version>0.1</version>
+	<version>0.2-SNAPSHOT</version>
 	<packaging>bundle</packaging>
 
 	<build>
@@ -38,11 +38,6 @@
 			<artifactId>sal</artifactId>
 			<version>0.7.0</version>
 		</dependency>
-		<!--<dependency>
-                        <groupId>org.opendaylight.ovsdb</groupId>
-                        <artifactId>commons</artifactId>
-                        <version>0.5.0</version>
-                </dependency>-->
 	</dependencies>
 	
 	<repositories>

@@ -6,7 +6,7 @@ import java.util.List;
 import org.opendaylight.controller.sal.action.Action;
 import org.opendaylight.controller.sal.action.Controller;
 import org.opendaylight.controller.sal.action.Drop;
-import org.opendaylight.controller.sal.action.Output;
+import org.opendaylight.controller.sal.action.Enqueue;
 import org.opendaylight.controller.sal.core.Edge;
 import org.opendaylight.controller.sal.core.NodeConnector;
 import org.opendaylight.controller.sal.core.Path;
@@ -110,7 +110,7 @@ public class FlowUtility
 		matchForward.setField(MatchType.IN_PORT, connectors.get(0));
 
 		forward = new Flow(matchForward, new ArrayList<Action>());
-		forward.addAction(new Output(connectors.get(1)));
+		forward.addAction(new Enqueue(connectors.get(1), 1));
 		forward.setPriority(basePriortity);
 		forward.setHardTimeout((short)(timeout - graceTime));
 
@@ -123,7 +123,7 @@ public class FlowUtility
 		matchForward.setField(MatchType.IN_PORT, connectors.get(0));
 
 		forward = new Flow(matchForward, new ArrayList<Action>());
-		forward.addAction(new Output(connectors.get(1)));
+		forward.addAction(new Enqueue(connectors.get(1), 1));
 		forward.addAction(new Controller());
 		forward.setPriority((short)(basePriortity + 1));
 		forward.setHardTimeout(timeout);
@@ -137,7 +137,7 @@ public class FlowUtility
 
 		backward = new Flow(matchForward, new ArrayList<Action>());
 		backward.setMatch(matchReverse);
-		backward.addAction(new Output(connectors.get(0)));
+		backward.addAction(new Enqueue(connectors.get(0), 1));
 		backward.setPriority(basePriortity);
 		backward.setHardTimeout(timeout);
 
@@ -153,7 +153,7 @@ public class FlowUtility
 			matchForward.setField(MatchType.IN_PORT, connectors.get(i + 0));
 
 			forward = new Flow(matchForward, new ArrayList<Action>());
-			forward.addAction(new Output(connectors.get(i + 1)));
+			forward.addAction(new Enqueue(connectors.get(i + 1), 1));
 			forward.setPriority(basePriortity);
 			forward.setHardTimeout(timeout);
 
@@ -166,7 +166,7 @@ public class FlowUtility
 			matchReverse.setField(MatchType.IN_PORT, connectors.get(i + 1));
 
 			backward = new Flow(matchReverse, new ArrayList<Action>());
-			backward.addAction(new Output(connectors.get(i + 0)));
+			backward.addAction(new Enqueue(connectors.get(i + 0), 1));
 			backward.setPriority(basePriortity);
 			backward.setHardTimeout(timeout);
 
@@ -214,7 +214,7 @@ public class FlowUtility
 			matchForward.setField(MatchType.IN_PORT, connectors.get(i + 0));
 
 			forward = new Flow(matchForward, new ArrayList<Action>());
-			forward.addAction(new Output(connectors.get(i + 1)));
+			forward.addAction(new Enqueue(connectors.get(i + 1), 1));
 			forward.setHardTimeout(timeout);
 
 			flowProgrammer.addFlow(connectors.get(i).getNode(), forward);
@@ -226,7 +226,7 @@ public class FlowUtility
 			matchReverse.setField(MatchType.IN_PORT, connectors.get(i + 1));
 
 			backward = new Flow(matchReverse, new ArrayList<Action>());
-			backward.addAction(new Output(connectors.get(i + 0)));
+			backward.addAction(new Enqueue(connectors.get(i + 0), 1));
 			backward.setHardTimeout(timeout);
 
 			flowProgrammer.addFlow(connectors.get(i).getNode(), backward);*/
