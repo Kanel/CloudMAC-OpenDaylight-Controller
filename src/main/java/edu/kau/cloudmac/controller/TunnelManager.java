@@ -35,6 +35,13 @@ public class TunnelManager
 		return get(mac) != null;
 	}
 
+	public boolean containsAccessPoint(byte[] mac)
+	{
+		cleanup();
+
+		return getByAccessPoint(mac) != null;
+	}
+
 	public MobileTerminalTunnel get(byte[] mac)
 	{
 		cleanup();
@@ -42,6 +49,20 @@ public class TunnelManager
 		for (MobileTerminalTunnel element : mobileTerminals)
 		{
 			if (Arrays.equals(element.getSource().getMacAdress(), mac))
+			{
+				return element;
+			}
+		}
+		return null;
+	}
+
+	public MobileTerminalTunnel getByAccessPoint(byte[] mac)
+	{
+		cleanup();
+
+		for (MobileTerminalTunnel element : mobileTerminals)
+		{
+			if (Arrays.equals(element.getAccessPoint().getMacAdress(), mac))
 			{
 				return element;
 			}

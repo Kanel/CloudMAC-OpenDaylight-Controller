@@ -44,10 +44,10 @@ public class PacketHandler implements IListenDataPacket
 		CLOUDMAC_FLOW_TIME = 120;
 		CLOUDMAC_FLOW_BLOCK_TIME = 2;
 		CLOUDMAC_FLOW_GRACETIME = 10;
-		CLOUDMAC_ACCESS_POINT_EXPIRATION = 16000;
-		CLOUDMAC_ACCESS_POINT_EXPIRATION_GRACE = 4000;
-		CLOUDMAC_MOBILE_TERMINAL_TUNNEL_EXPIRATION = 15000;
-		CLOUDMAC_WIRELESS_TERMINATION_POINT_EXPIRATION = 10000;
+		CLOUDMAC_ACCESS_POINT_EXPIRATION = 160000;
+		CLOUDMAC_ACCESS_POINT_EXPIRATION_GRACE = 10000;
+		CLOUDMAC_MOBILE_TERMINAL_TUNNEL_EXPIRATION = 120000;
+		CLOUDMAC_WIRELESS_TERMINATION_POINT_EXPIRATION = 120000;
 		CLOUDMAC_WIRELESS_TERMINATION_POINT_BEACON_EXPIRATION = 10000;
 	}
 
@@ -113,8 +113,9 @@ public class PacketHandler implements IListenDataPacket
 	private boolean isPartOfTest(byte[] mac)
 	{
 		byte[] mobileClient1 = new byte[] { 0, 38, 90, 11, 54, 124 };
+		byte[] mobileClient2 = new byte[] { 0x74, 0x2f, 0x68, (byte) 0xd2, 0x43, 0x17 };
 
-		return Arrays.equals(mac, mobileClient1);
+		return Arrays.equals(mac, mobileClient1) || Arrays.equals(mac, mobileClient2);
 	}
 
 	@Override
@@ -159,20 +160,23 @@ public class PacketHandler implements IListenDataPacket
 					accessPoints.add(ingressConnector, sourceMac, System.currentTimeMillis() + CLOUDMAC_ACCESS_POINT_EXPIRATION);
 				}
 
-				// Route beacons to WTPs to allow their presence to be easily detected.
-				if (wtps.hasFree())
+				// Route beacons to WTPs to allow their presence to be easily detected, only if the access point isn't in use.
+				if (!tunnels.containsAccessPoint(sourceMac))
 				{
-					WirelessTerminationPoint wtp =  wtps.allocate(System.currentTimeMillis() + CLOUDMAC_WIRELESS_TERMINATION_POINT_BEACON_EXPIRATION);
+					if (wtps.hasFree())
+					{
+						WirelessTerminationPoint wtp =  wtps.allocate(System.currentTimeMillis() + CLOUDMAC_WIRELESS_TERMINATION_POINT_BEACON_EXPIRATION);
 
-					log.trace("CloudMAC: Adding beacon tunnel {}", sourceMac, destinationMac);
+						log.trace("CloudMAC: Adding beacon tunnel {}", sourceMac, destinationMac);
 
-					flowUtil.createBeaconTunnel(ingressConnector, wtp.getConnector(), sourceMac, CLOUDMAC_FLOW_TIME);
-				}
-				else
-				{
-					log.trace("CloudMAC: Blocking beacon frames from access point({}).", sourceMac);
+						flowUtil.createBeaconTunnel(ingressConnector, wtp.getConnector(), sourceMac, CLOUDMAC_FLOW_TIME);
+					}
+					else
+					{
+						log.trace("CloudMAC: Blocking beacon frames from access point({}).", sourceMac);
 
-					flowUtil.block(ingressConnector, sourceMac, destinationMac, CLOUDMAC_FLOW_BLOCK_TIME);
+						flowUtil.block(ingressConnector, sourceMac, destinationMac, CLOUDMAC_FLOW_BLOCK_TIME);
+					}
 				}
 				break;
 
@@ -191,11 +195,15 @@ public class PacketHandler implements IListenDataPacket
 					if (accessPoints.hasFree())
 					{
 						AccessPoint ap = accessPoints.allocate(System.currentTimeMillis() + CLOUDMAC_MOBILE_TERMINAL_TUNNEL_EXPIRATION);
+						byte[] bah = ap.getMacAdress().clone();
+
+						bah[0] = 0x0a;
+						bah[1] = 0x0b;
 
 						log.trace("CloudMAC: Adding tunnel {} <-> {}", sourceMac, ap.getMacAdress());
 
 						tunnels.add(ingressConnector, sourceMac, ap, System.currentTimeMillis() + CLOUDMAC_MOBILE_TERMINAL_TUNNEL_EXPIRATION);
-						flowUtil.createTunnel(ingressConnector, ap.getConnector(), sourceMac, ap.getMacAdress(), CLOUDMAC_FLOW_TIME, CLOUDMAC_FLOW_GRACETIME);
+						flowUtil.createTunnel(ingressConnector, ap.getConnector(), sourceMac, bah, ap.getMacAdress(), CLOUDMAC_FLOW_TIME, CLOUDMAC_FLOW_GRACETIME);
 					}
 					else
 					{
@@ -241,7 +249,7 @@ public class PacketHandler implements IListenDataPacket
 
 							accessPoint.allocate(System.currentTimeMillis() + CLOUDMAC_MOBILE_TERMINAL_TUNNEL_EXPIRATION);
 							tunnels.add(ingressConnector, sourceMac, accessPoint, System.currentTimeMillis() + CLOUDMAC_MOBILE_TERMINAL_TUNNEL_EXPIRATION);
-							flowUtil.createTunnel(ingressConnector, accessPoint.getConnector(), sourceMac, accessPoint.getMacAdress(), CLOUDMAC_FLOW_TIME, CLOUDMAC_FLOW_GRACETIME);
+							flowUtil.createTunnel(ingressConnector, accessPoint.getConnector(), sourceMac, destinationMac, accessPoint.getMacAdress(), CLOUDMAC_FLOW_TIME, CLOUDMAC_FLOW_GRACETIME);
 						}
 						else
 						{
@@ -307,7 +315,7 @@ public class PacketHandler implements IListenDataPacket
 							// Extend tunnel "lease".
 							accessPoint.setAllocationExpiration(expiration + CLOUDMAC_MOBILE_TERMINAL_TUNNEL_EXPIRATION);
 							tunnel.setExpiration(expiration + CLOUDMAC_MOBILE_TERMINAL_TUNNEL_EXPIRATION);
-							flowUtil.createTunnel(ingressConnector, accessPoint.getConnector(), sourceMac, accessPoint.getMacAdress(), CLOUDMAC_FLOW_TIME, CLOUDMAC_FLOW_GRACETIME);
+							flowUtil.createTunnel(ingressConnector, accessPoint.getConnector(), sourceMac, destinationMac, accessPoint.getMacAdress(), CLOUDMAC_FLOW_TIME, CLOUDMAC_FLOW_GRACETIME);
 						}
 						else
 						{
