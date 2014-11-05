@@ -17,9 +17,13 @@ public class WirelessTerminationPointManager
 		wtps = new LinkedList<WirelessTerminationPoint>();
 	}
 
-	public void add(NodeConnector connector, long expiration)
+	public WirelessTerminationPoint add(NodeConnector connector, long expiration)
 	{
-		wtps.add(new WirelessTerminationPoint(connector, expiration));
+		WirelessTerminationPoint wtp = new WirelessTerminationPoint(connector, expiration);
+
+		wtps.add(wtp);
+
+		return wtp;
 	}
 
 	public void remove(NodeConnector connector)

@@ -2,6 +2,9 @@ package edu.kau.cloudmac.controller;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.FutureTask;
 
 import org.opendaylight.controller.sal.action.Action;
 import org.opendaylight.controller.sal.action.Controller;
@@ -23,7 +26,7 @@ public class FlowUtility
 	IFlowProgrammerService flowProgrammer;
 	IRouting routing;
 	private final short CLOUDMAC_ETHERNET_TYPE;
-	private static final Logger log = LoggerFactory.getLogger(PacketHandler.class);
+	private static final Logger log = LoggerFactory.getLogger(FlowUtility.class);
 
 	public FlowUtility(IFlowProgrammerService flowProgrammer, IRouting routing)
 	{
@@ -334,5 +337,14 @@ public class FlowUtility
 		flowProgrammer.addFlow(connector.getNode(), flow);
 
 		return FlowUtilityResult.OK;
+	}
+
+	public void ActivateAckingAsync(String hostname, int port, byte[] mac, int timeout)
+	{
+			AckingActivatorCallable activator = new AckingActivatorCallable(hostname, port, mac, timeout);
+			FutureTask<String> futureTask = new FutureTask<String>(activator);
+			ExecutorService executor =Executors.newSingleThreadExecutor();
+
+			executor.execute(futureTask);
 	}
 }

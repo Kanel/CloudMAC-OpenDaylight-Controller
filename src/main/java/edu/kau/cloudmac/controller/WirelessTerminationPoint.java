@@ -8,6 +8,7 @@ public class WirelessTerminationPoint
 	protected long allocationExpiration;
 	protected long expiration;
 	protected NodeConnector connector;
+	protected String ip;
 
 	public WirelessTerminationPoint(NodeConnector connector, long expiration)
 	{
@@ -60,6 +61,16 @@ public class WirelessTerminationPoint
 	public boolean expired()
 	{
 		return expiration < System.currentTimeMillis();
+	}
+
+	public void setIP(String ip)
+	{
+		this.ip = ip;
+	}
+
+	public String getIP()
+	{
+		return ip;
 	}
 
 	@Override

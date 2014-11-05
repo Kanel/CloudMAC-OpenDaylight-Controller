@@ -34,6 +34,7 @@ public class PacketHandler implements IListenDataPacket
 	private final long CLOUDMAC_WIRELESS_TERMINATION_POINT_EXPIRATION;
 	private final long CLOUDMAC_WIRELESS_TERMINATION_POINT_BEACON_EXPIRATION;
 
+	// TODO: keep track of the number of acking interfaces in use by each WTP.
 	public PacketHandler()
 	{
 		accessPoints = new AccessPointManager();
@@ -133,213 +134,224 @@ public class PacketHandler implements IListenDataPacket
 
 		if (CloudMACPacket.isCloudMAC(l2pkt))
 		{
-       		NodeConnector ingressConnector = inPkt.getIncomingNodeConnector();
-			FrameTypes frameType = FrameTypes.lookup(CloudMACPacket.getFrameType(inPkt));
+			NodeConnector ingressConnector = inPkt.getIncomingNodeConnector();
 			Ethernet ethPkt = (Ethernet)l2pkt;
 			byte[] sourceMac = ethPkt.getSourceMACAddress();
 			byte[] destinationMac = ethPkt.getDestinationMACAddress();
+			byte[] broadcast = { -1, -1, -1, -1, -1, -1};
 
-			log.trace("CloudMAC packet recieved, frame type: {}, {}", frameType, CloudMACPacket.getFrameType(inPkt));
-
-			// Handle Routing, and WTP, and VAP discovery.
-			switch (frameType)
+			// Special announce packet that reveals the presence of a WTP and which IP that can be used to configure it.
+			if (Arrays.equals(sourceMac, broadcast) && Arrays.equals(destinationMac, broadcast))
 			{
-			case Management_Beacon:
-				if (accessPoints.contains(sourceMac))
-				{
-					log.info("CloudMAC: Reseting access point expiration {}/{}.", ingressConnector, sourceMac);
+				WirelessTerminationPoint wtp;
 
-					// Refresh access point status.
-					accessPoints.get(sourceMac).setExpiration(System.currentTimeMillis() + CLOUDMAC_ACCESS_POINT_EXPIRATION);
+				if (wtps.contains(ingressConnector))
+				{
+					log.info("CloudMAC: Reseting WTP expiration {}.", ingressConnector);
+
+					wtp = wtps.get(ingressConnector);
+					wtp.setExpiration(System.currentTimeMillis() + CLOUDMAC_WIRELESS_TERMINATION_POINT_EXPIRATION);
 				}
+				// New WTP discovered.
 				else
 				{
-					log.info("CloudMAC: Discovered new access point {}/{}.", ingressConnector, sourceMac);
+					log.info("CloudMAC: Discovered new WTP {}.", ingressConnector);
 
-					// New access point discovered.
-					accessPoints.add(ingressConnector, sourceMac, System.currentTimeMillis() + CLOUDMAC_ACCESS_POINT_EXPIRATION);
+					wtp = wtps.add(ingressConnector, System.currentTimeMillis() + CLOUDMAC_WIRELESS_TERMINATION_POINT_EXPIRATION);
 				}
+				log.info("CloudMAC: Config IP {}", new String(l2pkt.getRawPayload()));
+				wtp.setIP(new String(l2pkt.getRawPayload()));
+			}
+			else
+			{
+				FrameTypes frameType = FrameTypes.lookup(CloudMACPacket.getFrameType(inPkt));
 
-				// Route beacons to WTPs to allow their presence to be easily detected, only if the access point isn't in use.
-				if (!tunnels.containsAccessPoint(sourceMac))
+				log.trace("CloudMAC packet recieved, frame type: {}, {}", frameType, CloudMACPacket.getFrameType(inPkt));
+
+				// Handle Routing, and WTP, and VAP discovery.
+				switch (frameType)
 				{
-					if (wtps.hasFree())
+				case Management_Beacon:
+					if (accessPoints.contains(sourceMac))
 					{
-						WirelessTerminationPoint wtp =  wtps.allocate(System.currentTimeMillis() + CLOUDMAC_WIRELESS_TERMINATION_POINT_BEACON_EXPIRATION);
+						log.info("CloudMAC: Reseting access point expiration {}/{}.", ingressConnector, sourceMac);
 
-						log.trace("CloudMAC: Adding beacon tunnel {}", sourceMac, destinationMac);
-
-						flowUtil.createBeaconTunnel(ingressConnector, wtp.getConnector(), sourceMac, CLOUDMAC_FLOW_TIME);
+						// Refresh access point status.
+						accessPoints.get(sourceMac).setExpiration(System.currentTimeMillis() + CLOUDMAC_ACCESS_POINT_EXPIRATION);
 					}
 					else
 					{
-						log.trace("CloudMAC: Blocking beacon frames from access point({}).", sourceMac);
+						log.info("CloudMAC: Discovered new access point {}/{}.", ingressConnector, sourceMac);
 
-						flowUtil.block(ingressConnector, sourceMac, destinationMac, CLOUDMAC_FLOW_BLOCK_TIME);
+						// New access point discovered.
+						accessPoints.add(ingressConnector, sourceMac, System.currentTimeMillis() + CLOUDMAC_ACCESS_POINT_EXPIRATION);
 					}
-				}
-				break;
 
-			case Management_Probe_Request:
-				if (!isPartOfTest(sourceMac))
-				{
-					log.trace("CloudMAC: Not part of test, blocking frames from {} to {}.", sourceMac, destinationMac);
-
-					flowUtil.block(ingressConnector, sourceMac, destinationMac, CLOUDMAC_FLOW_BLOCK_TIME);
-
-					break;
-				}
-
-				if (!tunnels.contains(sourceMac))
-				{
-					if (accessPoints.hasFree())
+					// Route beacons to WTPs to allow their presence to be easily detected, only if the access point isn't in use.
+					if (!tunnels.containsAccessPoint(sourceMac))
 					{
-						AccessPoint ap = accessPoints.allocate(System.currentTimeMillis() + CLOUDMAC_MOBILE_TERMINAL_TUNNEL_EXPIRATION);
-						byte[] bah = ap.getMacAdress().clone();
-
-						bah[0] = 0x0a;
-						bah[1] = 0x0b;
-
-						log.trace("CloudMAC: Adding tunnel {} <-> {}", sourceMac, ap.getMacAdress());
-
-						tunnels.add(ingressConnector, sourceMac, ap, System.currentTimeMillis() + CLOUDMAC_MOBILE_TERMINAL_TUNNEL_EXPIRATION);
-						flowUtil.createTunnel(ingressConnector, ap.getConnector(), sourceMac, bah, ap.getMacAdress(), CLOUDMAC_FLOW_TIME, CLOUDMAC_FLOW_GRACETIME);
-					}
-					else
-					{
-						log.trace("CloudMAC: No available access point.");
-					}
-				}
-				break;
-
-			case Management_Association_request:
-				if (!isPartOfTest(sourceMac))
-				{
-					log.trace("CloudMAC: Not part of test, blocking frames from {} to {}.", sourceMac, destinationMac);
-
-					flowUtil.block(ingressConnector, sourceMac, destinationMac, CLOUDMAC_FLOW_BLOCK_TIME);
-
-					break;
-				}
-
-				if (tunnels.contains(sourceMac))
-				{
-					byte[] mac = tunnels.get(sourceMac).getAccessPoint().getMacAdress();
-
-					if (destinationMac[2] != mac[2] ||
-						destinationMac[3] != mac[3] ||
-						destinationMac[4] != mac[4] ||
-						destinationMac[5] != mac[5])
-					{
-						log.trace("CloudMAC: Blocking frames from {} to {}.", sourceMac, destinationMac);
-
-						flowUtil.block(ingressConnector, sourceMac, destinationMac, CLOUDMAC_FLOW_BLOCK_TIME);
-					}
-					// TODO: Handle case of client trying to connect to another VAP. For now just block it.
-				}
-				else
-				{
-					if (accessPoints.contains(destinationMac))
-					{
-						AccessPoint accessPoint = accessPoints.get(destinationMac);
-
-						if (!accessPoint.isAllocated())
+						if (wtps.hasFree())
 						{
-							log.trace("CloudMAC: Creating tunnel {} <-> {}", sourceMac, accessPoint.getMacAdress());
+							WirelessTerminationPoint wtp =  wtps.allocate(System.currentTimeMillis() + CLOUDMAC_WIRELESS_TERMINATION_POINT_BEACON_EXPIRATION);
 
-							accessPoint.allocate(System.currentTimeMillis() + CLOUDMAC_MOBILE_TERMINAL_TUNNEL_EXPIRATION);
-							tunnels.add(ingressConnector, sourceMac, accessPoint, System.currentTimeMillis() + CLOUDMAC_MOBILE_TERMINAL_TUNNEL_EXPIRATION);
-							flowUtil.createTunnel(ingressConnector, accessPoint.getConnector(), sourceMac, destinationMac, accessPoint.getMacAdress(), CLOUDMAC_FLOW_TIME, CLOUDMAC_FLOW_GRACETIME);
+							log.trace("CloudMAC: Adding beacon tunnel {}", sourceMac, destinationMac);
+
+							flowUtil.createBeaconTunnel(ingressConnector, wtp.getConnector(), sourceMac, CLOUDMAC_FLOW_TIME);
+						}
+						else
+						{
+							log.trace("CloudMAC: Blocking beacon frames from access point({}).", sourceMac);
+
+							flowUtil.block(ingressConnector, sourceMac, destinationMac, CLOUDMAC_FLOW_BLOCK_TIME);
+						}
+					}
+					break;
+
+				case Management_Probe_Request:
+					if (!isPartOfTest(sourceMac))
+					{
+						log.trace("CloudMAC: Not part of test, blocking frames from {} to {}.", sourceMac, destinationMac);
+
+						flowUtil.block(ingressConnector, sourceMac, destinationMac, CLOUDMAC_FLOW_BLOCK_TIME);
+
+						break;
+					}
+
+					if (!tunnels.contains(sourceMac))
+					{
+						if (accessPoints.hasFree())
+						{
+							AccessPoint ap = accessPoints.allocate(System.currentTimeMillis() + CLOUDMAC_MOBILE_TERMINAL_TUNNEL_EXPIRATION);
+							byte[] bah = ap.getMacAdress().clone(); // TODO: this should not be needed...
+
+							bah[0] = 0x0a;
+							bah[1] = 0x0b;
+
+							log.trace("CloudMAC: Adding tunnel {} <-> {}", sourceMac, ap.getMacAdress());
+
+							tunnels.add(ingressConnector, sourceMac, ap, System.currentTimeMillis() + CLOUDMAC_MOBILE_TERMINAL_TUNNEL_EXPIRATION);
+							flowUtil.createTunnel(ingressConnector, ap.getConnector(), sourceMac, bah, ap.getMacAdress(), CLOUDMAC_FLOW_TIME, CLOUDMAC_FLOW_GRACETIME);
+							flowUtil.ActivateAckingAsync("192.168.0.164", 1999, bah, 120000);
+						}
+						else
+						{
+							log.trace("CloudMAC: No available access point.");
+						}
+					}
+					break;
+
+				case Management_Association_request:
+					if (!isPartOfTest(sourceMac))
+					{
+						log.trace("CloudMAC: Not part of test, blocking frames from {} to {}.", sourceMac, destinationMac);
+
+						flowUtil.block(ingressConnector, sourceMac, destinationMac, CLOUDMAC_FLOW_BLOCK_TIME);
+
+						break;
+					}
+
+					if (tunnels.contains(sourceMac))
+					{
+						byte[] mac = tunnels.get(sourceMac).getAccessPoint().getMacAdress();
+
+						if (destinationMac[2] != mac[2] ||
+							destinationMac[3] != mac[3] ||
+							destinationMac[4] != mac[4] ||
+							destinationMac[5] != mac[5])
+						{
+							log.trace("CloudMAC: Blocking frames from {} to {}.", sourceMac, destinationMac);
+
+							flowUtil.block(ingressConnector, sourceMac, destinationMac, CLOUDMAC_FLOW_BLOCK_TIME);
+						}
+						// TODO: Handle case of client trying to connect to another VAP. For now just block it.
+					}
+					else
+					{
+						if (accessPoints.contains(destinationMac))
+						{
+							AccessPoint accessPoint = accessPoints.get(destinationMac);
+
+							if (!accessPoint.isAllocated())
+							{
+								log.trace("CloudMAC: Creating tunnel {} <-> {}", sourceMac, accessPoint.getMacAdress());
+
+								accessPoint.allocate(System.currentTimeMillis() + CLOUDMAC_MOBILE_TERMINAL_TUNNEL_EXPIRATION);
+								tunnels.add(ingressConnector, sourceMac, accessPoint, System.currentTimeMillis() + CLOUDMAC_MOBILE_TERMINAL_TUNNEL_EXPIRATION);
+								flowUtil.createTunnel(ingressConnector, accessPoint.getConnector(), sourceMac, destinationMac, accessPoint.getMacAdress(), CLOUDMAC_FLOW_TIME, CLOUDMAC_FLOW_GRACETIME);
+								flowUtil.ActivateAckingAsync("192.168.0.164", 1999, destinationMac, 120000);
+							}
+							else
+							{
+								log.trace("CloudMAC: Blocking frames from {} to {}.", sourceMac, destinationMac);
+
+								// Access point is in use, nothing we can do other than ignore the packets.
+								flowUtil.block(ingressConnector, sourceMac, destinationMac, CLOUDMAC_FLOW_BLOCK_TIME);
+							}
 						}
 						else
 						{
 							log.trace("CloudMAC: Blocking frames from {} to {}.", sourceMac, destinationMac);
 
-							// Access point is in use, nothing we can do other than ignore the packets.
+							// This is not our problem, simply block these packets.
+							flowUtil.block(ingressConnector, sourceMac, destinationMac, CLOUDMAC_FLOW_BLOCK_TIME);
+						}
+					}
+					break;
+
+				default:
+					if (!isPartOfTest(sourceMac))
+					{
+						log.trace("CloudMAC: Not part of test, blocking frames from {} to {}.", sourceMac, destinationMac);
+
+						flowUtil.block(ingressConnector, sourceMac, destinationMac, CLOUDMAC_FLOW_BLOCK_TIME);
+
+						break;
+					}
+
+
+					// Does the traffic belong to a known tunnel?
+					if (tunnels.contains(sourceMac) && accessPoints.contains(destinationMac))
+					{
+						MobileTerminalTunnel tunnel = tunnels.get(sourceMac);
+						AccessPoint accessPoint = accessPoints.get(destinationMac);
+
+						if (tunnel.getAccessPoint().equals(accessPoint))
+						{
+							if (tunnel.getSource().getConnector().equals(ingressConnector)) // Is the frame coming from the same WTP as before?
+							{
+								long expiration = System.currentTimeMillis();
+
+								log.trace("CloudMAC: Extedning tunnel lease {} <-> {}", sourceMac, destinationMac);
+
+								// Extend tunnel "lease".
+								accessPoint.setAllocationExpiration(expiration + CLOUDMAC_MOBILE_TERMINAL_TUNNEL_EXPIRATION);
+								tunnel.setExpiration(expiration + CLOUDMAC_MOBILE_TERMINAL_TUNNEL_EXPIRATION);
+								flowUtil.createTunnel(ingressConnector, accessPoint.getConnector(), sourceMac, destinationMac, accessPoint.getMacAdress(), CLOUDMAC_FLOW_TIME, CLOUDMAC_FLOW_GRACETIME);
+								flowUtil.ActivateAckingAsync("192.168.0.164", 1999, destinationMac, 120000);
+							}
+							else
+							{
+								// TODO: Handle handover between known WTPs.
+							}
+						}
+						else
+						{
+							log.trace("CloudMAC: Blocking frames from {} to {}.", sourceMac, destinationMac);
+
+							// Client tries to send data to a VAP it's not associated with, not allowed, block it.
 							flowUtil.block(ingressConnector, sourceMac, destinationMac, CLOUDMAC_FLOW_BLOCK_TIME);
 						}
 					}
 					else
 					{
-						log.trace("CloudMAC: Blocking frames from {} to {}.", sourceMac, destinationMac);
+						log.trace("CloudMAC:3 Blocking frames from {} to {}.", sourceMac, destinationMac);
 
-						// This is not our problem, simply block these packets.
+						// Unknown traffic possibly from another network, you can end up here if a tunnel times out but the client or access point still sends traffic.
 						flowUtil.block(ingressConnector, sourceMac, destinationMac, CLOUDMAC_FLOW_BLOCK_TIME);
 					}
-				}
-				break;
-
-			default:
-				// Keep track of WTPs in the network.
-				if (frameType != FrameTypes.Management_Beacon && !accessPoints.contains(sourceMac)) // Keep track of active WTPs.
-				{
-					if (wtps.contains(ingressConnector))
-					{
-						log.info("CloudMAC: Reseting WTP expiration {}.", ingressConnector);
-
-						wtps.get(ingressConnector).setExpiration(System.currentTimeMillis() + CLOUDMAC_WIRELESS_TERMINATION_POINT_EXPIRATION);
-					}
-					// New WTP discovered.
-					else
-					{
-						log.info("CloudMAC: Discovered new WTP {}.", ingressConnector);
-
-						wtps.add(ingressConnector, System.currentTimeMillis() + CLOUDMAC_WIRELESS_TERMINATION_POINT_EXPIRATION);
-					}
-				}
-
-				if (!isPartOfTest(sourceMac))
-				{
-					log.trace("CloudMAC: Not part of test, blocking frames from {} to {}.", sourceMac, destinationMac);
-
-					flowUtil.block(ingressConnector, sourceMac, destinationMac, CLOUDMAC_FLOW_BLOCK_TIME);
-
 					break;
 				}
-
-
-				// Does the traffic belong to a known tunnel?
-				if (tunnels.contains(sourceMac) && accessPoints.contains(destinationMac))
-				{
-					MobileTerminalTunnel tunnel = tunnels.get(sourceMac);
-					AccessPoint accessPoint = accessPoints.get(destinationMac);
-
-					if (tunnel.getAccessPoint().equals(accessPoint))
-					{
-						if (tunnel.getSource().getConnector().equals(ingressConnector)) // Is the frame coming from the same WTP as before?
-						{
-							long expiration = System.currentTimeMillis();
-
-							log.trace("CloudMAC: Extedning tunnel lease {} <-> {}", sourceMac, destinationMac);
-
-							// Extend tunnel "lease".
-							accessPoint.setAllocationExpiration(expiration + CLOUDMAC_MOBILE_TERMINAL_TUNNEL_EXPIRATION);
-							tunnel.setExpiration(expiration + CLOUDMAC_MOBILE_TERMINAL_TUNNEL_EXPIRATION);
-							flowUtil.createTunnel(ingressConnector, accessPoint.getConnector(), sourceMac, destinationMac, accessPoint.getMacAdress(), CLOUDMAC_FLOW_TIME, CLOUDMAC_FLOW_GRACETIME);
-						}
-						else
-						{
-							// TODO: Handle handover between known WTPs.
-						}
-					}
-					else
-					{
-						log.trace("CloudMAC: Blocking frames from {} to {}.", sourceMac, destinationMac);
-
-						// Client tries to send data to a VAP it's not associated with, not allowed, block it.
-						flowUtil.block(ingressConnector, sourceMac, destinationMac, CLOUDMAC_FLOW_BLOCK_TIME);
-					}
-				}
-				else
-				{
-					log.trace("CloudMAC:3 Blocking frames from {} to {}.", sourceMac, destinationMac);
-
-					// Unknown traffic possibly from another network, you can end up here if a tunnel times out but the client or access point still sends traffic.
-					flowUtil.block(ingressConnector, sourceMac, destinationMac, CLOUDMAC_FLOW_BLOCK_TIME);
-				}
-				break;
 			}
-
 			// TODO: Handle CloudMAC controller crash.
 			return PacketResult.CONSUME;
 		}
