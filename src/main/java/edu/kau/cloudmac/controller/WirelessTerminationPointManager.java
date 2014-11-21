@@ -89,13 +89,13 @@ public class WirelessTerminationPointManager
 
 		    if (element.isAllocated() && element.getAllocationExpiration() < now)
 			{
-		    	log.trace("CloudMAC: WTP beacon allocation has expired {}/{}. ", element.getConnector());
+		    	log.trace("WTP beacon allocation has expired {}/{}. ", element.getConnector());
 
 		    	element.deallocate();
 			}
 			if (element.getExpiration() < now)
 			{
-				log.info("CloudMAC: WTP has expired {}/{}. ", element.getConnector());
+				log.info("WTP has expired {}/{}. ", element.getConnector());
 
 				iter.remove();
 			}

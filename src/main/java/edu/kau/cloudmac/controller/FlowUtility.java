@@ -11,6 +11,7 @@ import org.opendaylight.controller.sal.action.Controller;
 import org.opendaylight.controller.sal.action.Drop;
 import org.opendaylight.controller.sal.action.Enqueue;
 import org.opendaylight.controller.sal.core.Edge;
+import org.opendaylight.controller.sal.core.Node;
 import org.opendaylight.controller.sal.core.NodeConnector;
 import org.opendaylight.controller.sal.core.Path;
 import org.opendaylight.controller.sal.flowprogrammer.Flow;
@@ -18,6 +19,7 @@ import org.opendaylight.controller.sal.flowprogrammer.IFlowProgrammerService;
 import org.opendaylight.controller.sal.match.Match;
 import org.opendaylight.controller.sal.match.MatchType;
 import org.opendaylight.controller.sal.routing.IRouting;
+import org.opendaylight.controller.sal.utils.Status;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -61,7 +63,7 @@ public class FlowUtility
 		ArrayList<NodeConnector> list = new ArrayList<NodeConnector>();
 		List<Edge> edges;
 
-		if (a.equals(b))
+		if (a.getNode().equals(b.getNode()))
 		{
 			edges = new ArrayList<Edge>();
 		}
@@ -69,9 +71,15 @@ public class FlowUtility
 		{
 			Path path = routing.getRoute(a.getNode(), b.getNode());
 
-			edges = path.getEdges();
+			if (path != null)
+			{
+				edges = path.getEdges();
+			}
+			else
+			{
+				return null;
+			}
 		}
-
 		list.add(a);
 
 		for (Edge edge : edges)
@@ -92,6 +100,8 @@ public class FlowUtility
 		if (flowProgrammer == null)
 			return FlowUtilityResult.NO_I_FLOW_PROGRAMMER;
 
+		log.trace("<<<<<<<<<----2.0");
+
 		ArrayList<NodeConnector> connectors = getRoute(a, b);
 		Match matchForward;
 		Match matchReverse;
@@ -103,8 +113,17 @@ public class FlowUtility
 		byte[] broadcast = new byte[] { (byte)0xFF, (byte)0xFF, (byte)0xFF, (byte)0xFF, (byte)0xFF, (byte)0xFF };
 		short basePriortity = 1000;
 
+		if (connectors == null)
+		{
+			log.warn("No path connecting {} and {}", a.getNode(), b.getNode());
+
+			return FlowUtilityResult.NO_PATH;
+		}
+
 		matchForward = new Match();
 		matchReverse = new Match();
+
+		log.trace("<<<<<<<<<----2.3");
 
 		// Initial node keeps track if the connection is active.
 		// Forward flow.
@@ -113,12 +132,30 @@ public class FlowUtility
 		matchForward.setField(MatchType.DL_DST, bMac);
 		matchForward.setField(MatchType.IN_PORT, connectors.get(0));
 
+		log.trace("<<<<<<<<<----2.3.1");
+
 		forward = new Flow(matchForward, new ArrayList<Action>());
+		//forward.addAction(new Output(connectors.get(1)));
 		forward.addAction(new Enqueue(connectors.get(1), 1));
 		forward.setPriority((short)(basePriortity + 1));
 		forward.setHardTimeout((short)(timeout - graceTime));
 
-		flowProgrammer.addFlow(connectors.get(0).getNode(), forward);
+		log.trace("<<<<<<<<<----2.3.2");
+		try
+		{
+			Status s = flowProgrammer.addFlow(connectors.get(0).getNode(), forward);
+			boolean staph = true;
+
+			staph = false;
+		}
+		catch (Exception e)
+		{
+			boolean staph = true;
+
+			staph = false;
+		}
+
+		log.trace("<<<<<<<<<----2.4");
 
 		// Forward flow.
 		matchForward.setField(MatchType.DL_TYPE, CLOUDMAC_ETHERNET_TYPE);
@@ -284,6 +321,13 @@ public class FlowUtility
 		Flow backward;
 		byte[] mask = new byte[]{ 0, 0, (byte)0xff, (byte)0xff, (byte)0xff, (byte)0xff }; // The first 2 bytes can dynamically change.
 
+		if (connectors == null)
+		{
+			log.warn("No path connecting {} and {}", a.getNode(), b.getNode());
+
+			return FlowUtilityResult.NO_PATH;
+		}
+
 		// The rest of the flows.
 		for (int i = 0; i < connectors.size(); i += 2)
 		{
@@ -325,8 +369,8 @@ public class FlowUtility
 		byte[] mask = new byte[]{ 0, 0, (byte)0xff, (byte)0xff, (byte)0xff, (byte)0xff }; // The first 2 bytes can dynamically change.
 
 		match.setField(MatchType.IN_PORT, connector);
-		match.setField(MatchType.DL_SRC, sourceMac, mask);
-		match.setField(MatchType.DL_DST, destiantionMac, mask);
+		match.setField(MatchType.DL_SRC, sourceMac.clone(), mask);
+		match.setField(MatchType.DL_DST, destiantionMac.clone(), mask);
 
 		flow.setActions(new ArrayList<Action>());
 		flow.addAction(new Drop());
@@ -334,7 +378,14 @@ public class FlowUtility
 		flow.setHardTimeout(timeout);
 		flow.setPriority((short)2000);
 
-		flowProgrammer.addFlow(connector.getNode(), flow);
+		Node node = connector.getNode();
+
+		Status stat = flowProgrammer.addFlow(node, flow);
+
+		if (!stat.isSuccess())
+		{
+			log.warn("Flow: {}, {}", flow, stat.getDescription());
+		}
 
 		return FlowUtilityResult.OK;
 	}

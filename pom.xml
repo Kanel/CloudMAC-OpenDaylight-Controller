@@ -33,51 +33,85 @@
 	</build>
 	
 	<dependencies>
+		<!--<dependency>
+                        <groupId>org.opendaylight.ovsdb</groupId>
+                        <artifactId>plugin</artifactId>
+                        <version>1.0.0-Helium</version>-->
+			<!--<groupId>org.opendaylight.ovsdb</groupId>
+			<artifactId>ovsdb</artifactId>
+			<version>0.5.0</version>
+		</dependency>-->
+<!--<dependency>
+<groupId>org.opendaylight.ovsdb</groupId>
+<artifactId>library</artifactId>
+<version>0.7.0</version>
+</dependency>
+<dependency>
+<groupId>org.opendaylight.ovsdb</groupId>
+<artifactId>plugin</artifactId>
+<version>1.0.0-Helium</version>
+</dependency>-->
+
+
 		<dependency>
 			<groupId>org.opendaylight.controller</groupId>
 			<artifactId>sal</artifactId>
-			<version>0.7.0</version>
+			<version>0.8.1-Helium</version>
 		</dependency>
 	</dependencies>
 	
 	<repositories>
-		<!-- OpenDaylight releases -->
-		<repository>
-			<id>opendaylight-mirror</id>
-			<name>opendaylight-mirror</name>
-			<url>http://nexus.opendaylight.org/content/groups/public/</url>
-			<snapshots>
-				<enabled>false</enabled>
-			</snapshots>
-			<releases>
-				<enabled>true</enabled>
-				<updatePolicy>never</updatePolicy>
-			</releases>
-		</repository>
-		<!-- OpenDaylight snapshots -->
-		<repository>
-			<id>opendaylight-snapshot</id>
-			<name>opendaylight-snapshot</name>
-			<url>http://nexus.opendaylight.org/content/repositories/opendaylight.snapshot/</url>
-			<snapshots>
-				<enabled>true</enabled>
-			</snapshots>
-			<releases>
-				<enabled>false</enabled>
-			</releases>
-		</repository>
-	</repositories>
+    <!-- Opendaylight public group -->
+    <repository>
+      <id>opendaylight-public</id>
+      <name>opendaylight-public</name>
+      <url>http://nexus.opendaylight.org/content/groups/public/</url>
+      <snapshots>
+        <enabled>false</enabled>
+      </snapshots>
+      <releases>
+        <enabled>true</enabled>
+        <updatePolicy>never</updatePolicy>
+      </releases>
+    </repository>
+    <!-- OpenDayLight Released artifact -->
+    <repository>
+      <id>opendaylight-release</id>
+      <name>opendaylight-release</name>
+      <url>http://nexus.opendaylight.org/content/repositories/opendaylight.release/</url>
+      <snapshots>
+        <enabled>false</enabled>
+      </snapshots>
+      <releases>
+        <enabled>true</enabled>
+      </releases>
+    </repository>
+    <!-- OpenDayLight Snapshot artifact -->
+    <repository>
+      <id>opendaylight-snapshot</id>
+      <name>opendaylight-snapshot</name>
+      <url>http://nexus.opendaylight.org/content/repositories/opendaylight.snapshot/</url>
+      <snapshots>
+        <enabled>true</enabled>
+      </snapshots>
+      <releases>
+        <enabled>false</enabled>
+      </releases>
+    </repository>
 
-	<pluginRepositories>
-	    <pluginRepository>
-		<id>autoincrement-versions-maven-plugin</id>
-		<name>autoincrement-versions-maven-plugin</name>
-		<url>http://autoincrement-versions-maven-plugin.googlecode.com/svn/repo</url>
-		<snapshots>
-		    <enabled>true</enabled>
-		</snapshots>
-	    </pluginRepository>
-	</pluginRepositories>
+    <repository>
+      <id>sdn-hub</id>
+      <name>sdnhub</name>
+      <url>http://repo.sdnhub.org:8080/nexus/content/groups/public/</url>
+      <snapshots>
+        <enabled>true</enabled>
+      </snapshots>
+      <releases>
+        <enabled>true</enabled>
+      </releases>
+    </repository>
+
+	</repositories>
 	<properties>
 	  <maven.compiler.source>1.7</maven.compiler.source>
 	  <maven.compiler.target>1.7</maven.compiler.target>

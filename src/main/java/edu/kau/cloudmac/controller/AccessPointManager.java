@@ -91,13 +91,13 @@ public class AccessPointManager
 
 		    if (element.isAllocated() && element.getAllocationExpiration() < now)
 			{
-		    	log.trace("CloudMAC: Access point allocation has expired {}/{}. ", element.getConnector(), element.getMacAdress());
+		    	log.trace("Access point allocation has expired {}/{}. ", element.getConnector(), element.getMacAdress());
 
 		    	element.deallocate();
 			}
 			if (element.getExpiration() < now)
 			{
-				log.info("CloudMAC: Access point has expired {}/{}. ", element.getConnector(), element.getMacAdress());
+				log.info("Access point has expired {}/{}. ", element.getConnector(), element.getMacAdress());
 
 				iter.remove();
 			}

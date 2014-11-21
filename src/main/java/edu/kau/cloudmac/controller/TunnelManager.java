@@ -78,7 +78,7 @@ public class TunnelManager
 
 			if (element.expired() || element.getAccessPoint().expired())
 			{
-				log.trace("CloudMAC: Tunnel has expired {}. ", element.getSource().getMacAdress());
+				log.trace("Tunnel has expired {}. ", element.getSource().getMacAdress());
 
 				iter.remove();
 			}

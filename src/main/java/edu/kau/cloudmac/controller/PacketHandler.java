@@ -20,6 +20,7 @@ public class PacketHandler implements IListenDataPacket
 	private IDataPacketService dataPacketService;
 	private IRouting routing;
 	private IFlowProgrammerService flowProgrammer;
+	//private OVSDBConfigService ovsdbConfig;
 	private AccessPointManager accessPoints;
 	private TunnelManager tunnels;
 	private WirelessTerminationPointManager wtps;
@@ -111,6 +112,23 @@ public class PacketHandler implements IListenDataPacket
         }
     }
 
+	/*void setOVSDBConfigService(OVSDBConfigService oc)
+    {
+        log.trace("Set OVSDBConfigService.");
+
+        ovsdbConfig = oc;
+    }
+
+	void unsetOVSDBConfigService(OVSDBConfigService oc)
+    {
+        log.trace("Removed OVSDBConfigService.");
+
+        if (ovsdbConfig == oc)
+        {
+        	ovsdbConfig = null;
+        }
+    }*/
+
 	private boolean isPartOfTest(byte[] mac)
 	{
 		byte[] mobileClient1 = new byte[] { 0, 38, 90, 11, 54, 124 };
@@ -132,22 +150,31 @@ public class PacketHandler implements IListenDataPacket
 
 		Packet l2pkt = dataPacketService.decodeDataPacket(inPkt);
 
+		NodeConnector ingressConnector = inPkt.getIncomingNodeConnector();
+		Ethernet ethPkt = (Ethernet)l2pkt;
+		byte[] sourceMac = ethPkt.getSourceMACAddress();
+		byte[] destinationMac = ethPkt.getDestinationMACAddress();
+		byte[] broadcast = { -1, -1, -1, -1, -1, -1};
+
+		flowUtil.block(ingressConnector, sourceMac, destinationMac, CLOUDMAC_FLOW_BLOCK_TIME);
+
 		if (CloudMACPacket.isCloudMAC(l2pkt))
 		{
-			NodeConnector ingressConnector = inPkt.getIncomingNodeConnector();
+			/*NodeConnector ingressConnector = inPkt.getIncomingNodeConnector();
 			Ethernet ethPkt = (Ethernet)l2pkt;
 			byte[] sourceMac = ethPkt.getSourceMACAddress();
 			byte[] destinationMac = ethPkt.getDestinationMACAddress();
-			byte[] broadcast = { -1, -1, -1, -1, -1, -1};
+			byte[] broadcast = { -1, -1, -1, -1, -1, -1};*/
 
 			// Special announce packet that reveals the presence of a WTP and which IP that can be used to configure it.
 			if (Arrays.equals(sourceMac, broadcast) && Arrays.equals(destinationMac, broadcast))
 			{
 				WirelessTerminationPoint wtp;
+				String ip = new String(l2pkt.getRawPayload());
 
 				if (wtps.contains(ingressConnector))
 				{
-					log.info("CloudMAC: Reseting WTP expiration {}.", ingressConnector);
+					log.trace("Reseting WTP expiration {}, config IP {}", ingressConnector, ip);
 
 					wtp = wtps.get(ingressConnector);
 					wtp.setExpiration(System.currentTimeMillis() + CLOUDMAC_WIRELESS_TERMINATION_POINT_EXPIRATION);
@@ -155,12 +182,11 @@ public class PacketHandler implements IListenDataPacket
 				// New WTP discovered.
 				else
 				{
-					log.info("CloudMAC: Discovered new WTP {}.", ingressConnector);
+					log.info("Discovered new WTP {}, config IP {}", ingressConnector, ip);
 
 					wtp = wtps.add(ingressConnector, System.currentTimeMillis() + CLOUDMAC_WIRELESS_TERMINATION_POINT_EXPIRATION);
 				}
-				log.info("CloudMAC: Config IP {}", new String(l2pkt.getRawPayload()));
-				wtp.setIP(new String(l2pkt.getRawPayload()));
+				wtp.setIP(ip);
 			}
 			else
 			{
@@ -174,14 +200,14 @@ public class PacketHandler implements IListenDataPacket
 				case Management_Beacon:
 					if (accessPoints.contains(sourceMac))
 					{
-						log.info("CloudMAC: Reseting access point expiration {}/{}.", ingressConnector, sourceMac);
+						log.trace("Reseting access point expiration {}/{}.", ingressConnector, sourceMac);
 
 						// Refresh access point status.
 						accessPoints.get(sourceMac).setExpiration(System.currentTimeMillis() + CLOUDMAC_ACCESS_POINT_EXPIRATION);
 					}
 					else
 					{
-						log.info("CloudMAC: Discovered new access point {}/{}.", ingressConnector, sourceMac);
+						log.info("Discovered new access point {}/{}.", ingressConnector, sourceMac);
 
 						// New access point discovered.
 						accessPoints.add(ingressConnector, sourceMac, System.currentTimeMillis() + CLOUDMAC_ACCESS_POINT_EXPIRATION);
@@ -194,13 +220,13 @@ public class PacketHandler implements IListenDataPacket
 						{
 							WirelessTerminationPoint wtp =  wtps.allocate(System.currentTimeMillis() + CLOUDMAC_WIRELESS_TERMINATION_POINT_BEACON_EXPIRATION);
 
-							log.trace("CloudMAC: Adding beacon tunnel {}", sourceMac, destinationMac);
+							log.trace("Adding beacon tunnel {}", sourceMac, destinationMac);
 
 							flowUtil.createBeaconTunnel(ingressConnector, wtp.getConnector(), sourceMac, CLOUDMAC_FLOW_TIME);
 						}
 						else
 						{
-							log.trace("CloudMAC: Blocking beacon frames from access point({}).", sourceMac);
+							log.trace("Blocking beacon frames from access point({}).", sourceMac);
 
 							flowUtil.block(ingressConnector, sourceMac, destinationMac, CLOUDMAC_FLOW_BLOCK_TIME);
 						}
@@ -210,7 +236,7 @@ public class PacketHandler implements IListenDataPacket
 				case Management_Probe_Request:
 					if (!isPartOfTest(sourceMac))
 					{
-						log.trace("CloudMAC: Not part of test, blocking frames from {} to {}.", sourceMac, destinationMac);
+						log.trace("Not part of test, blocking frames from {} to {}.", sourceMac, destinationMac);
 
 						flowUtil.block(ingressConnector, sourceMac, destinationMac, CLOUDMAC_FLOW_BLOCK_TIME);
 
@@ -227,15 +253,19 @@ public class PacketHandler implements IListenDataPacket
 							bah[0] = 0x0a;
 							bah[1] = 0x0b;
 
-							log.trace("CloudMAC: Adding tunnel {} <-> {}", sourceMac, ap.getMacAdress());
+							log.trace("Adding tunnel {} <-> {}", sourceMac, ap.getMacAdress());
 
+							log.trace("<<<<<<<<<----1");
 							tunnels.add(ingressConnector, sourceMac, ap, System.currentTimeMillis() + CLOUDMAC_MOBILE_TERMINAL_TUNNEL_EXPIRATION);
+							log.trace("<<<<<<<<<----2");
 							flowUtil.createTunnel(ingressConnector, ap.getConnector(), sourceMac, bah, ap.getMacAdress(), CLOUDMAC_FLOW_TIME, CLOUDMAC_FLOW_GRACETIME);
-							flowUtil.ActivateAckingAsync("192.168.0.164", 1999, bah, 120000);
+							log.trace("<<<<<<<<<----3");
+							flowUtil.ActivateAckingAsync("192.168.0.164", 1999, bah, CLOUDMAC_FLOW_TIME * 1000);
+							log.trace("<<<<<<<<<----4");
 						}
 						else
 						{
-							log.trace("CloudMAC: No available access point.");
+							log.warn("No available access point.");
 						}
 					}
 					break;
@@ -243,7 +273,7 @@ public class PacketHandler implements IListenDataPacket
 				case Management_Association_request:
 					if (!isPartOfTest(sourceMac))
 					{
-						log.trace("CloudMAC: Not part of test, blocking frames from {} to {}.", sourceMac, destinationMac);
+						log.trace("Not part of test, blocking frames from {} to {}.", sourceMac, destinationMac);
 
 						flowUtil.block(ingressConnector, sourceMac, destinationMac, CLOUDMAC_FLOW_BLOCK_TIME);
 
@@ -259,7 +289,7 @@ public class PacketHandler implements IListenDataPacket
 							destinationMac[4] != mac[4] ||
 							destinationMac[5] != mac[5])
 						{
-							log.trace("CloudMAC: Blocking frames from {} to {}.", sourceMac, destinationMac);
+							log.trace("Blocking frames from {} to {}.", sourceMac, destinationMac);
 
 							flowUtil.block(ingressConnector, sourceMac, destinationMac, CLOUDMAC_FLOW_BLOCK_TIME);
 						}
@@ -273,16 +303,16 @@ public class PacketHandler implements IListenDataPacket
 
 							if (!accessPoint.isAllocated())
 							{
-								log.trace("CloudMAC: Creating tunnel {} <-> {}", sourceMac, accessPoint.getMacAdress());
+								log.trace("Creating tunnel {} <-> {}", sourceMac, accessPoint.getMacAdress());
 
 								accessPoint.allocate(System.currentTimeMillis() + CLOUDMAC_MOBILE_TERMINAL_TUNNEL_EXPIRATION);
 								tunnels.add(ingressConnector, sourceMac, accessPoint, System.currentTimeMillis() + CLOUDMAC_MOBILE_TERMINAL_TUNNEL_EXPIRATION);
 								flowUtil.createTunnel(ingressConnector, accessPoint.getConnector(), sourceMac, destinationMac, accessPoint.getMacAdress(), CLOUDMAC_FLOW_TIME, CLOUDMAC_FLOW_GRACETIME);
-								flowUtil.ActivateAckingAsync("192.168.0.164", 1999, destinationMac, 120000);
+								flowUtil.ActivateAckingAsync("192.168.0.164", 1999, destinationMac, CLOUDMAC_FLOW_TIME * 1000);
 							}
 							else
 							{
-								log.trace("CloudMAC: Blocking frames from {} to {}.", sourceMac, destinationMac);
+								log.trace("Blocking frames from {} to {}.", sourceMac, destinationMac);
 
 								// Access point is in use, nothing we can do other than ignore the packets.
 								flowUtil.block(ingressConnector, sourceMac, destinationMac, CLOUDMAC_FLOW_BLOCK_TIME);
@@ -290,7 +320,7 @@ public class PacketHandler implements IListenDataPacket
 						}
 						else
 						{
-							log.trace("CloudMAC: Blocking frames from {} to {}.", sourceMac, destinationMac);
+							log.trace("Blocking frames from {} to {}.", sourceMac, destinationMac);
 
 							// This is not our problem, simply block these packets.
 							flowUtil.block(ingressConnector, sourceMac, destinationMac, CLOUDMAC_FLOW_BLOCK_TIME);
@@ -301,7 +331,7 @@ public class PacketHandler implements IListenDataPacket
 				default:
 					if (!isPartOfTest(sourceMac))
 					{
-						log.trace("CloudMAC: Not part of test, blocking frames from {} to {}.", sourceMac, destinationMac);
+						log.trace("Not part of test, blocking frames from {} to {}.", sourceMac, destinationMac);
 
 						flowUtil.block(ingressConnector, sourceMac, destinationMac, CLOUDMAC_FLOW_BLOCK_TIME);
 
@@ -321,13 +351,13 @@ public class PacketHandler implements IListenDataPacket
 							{
 								long expiration = System.currentTimeMillis();
 
-								log.trace("CloudMAC: Extedning tunnel lease {} <-> {}", sourceMac, destinationMac);
+								log.trace("Extedning tunnel lease {} <-> {}", sourceMac, destinationMac);
 
 								// Extend tunnel "lease".
 								accessPoint.setAllocationExpiration(expiration + CLOUDMAC_MOBILE_TERMINAL_TUNNEL_EXPIRATION);
 								tunnel.setExpiration(expiration + CLOUDMAC_MOBILE_TERMINAL_TUNNEL_EXPIRATION);
 								flowUtil.createTunnel(ingressConnector, accessPoint.getConnector(), sourceMac, destinationMac, accessPoint.getMacAdress(), CLOUDMAC_FLOW_TIME, CLOUDMAC_FLOW_GRACETIME);
-								flowUtil.ActivateAckingAsync("192.168.0.164", 1999, destinationMac, 120000);
+								flowUtil.ActivateAckingAsync("192.168.0.164", 1999, destinationMac, CLOUDMAC_FLOW_TIME * 1000);
 							}
 							else
 							{
@@ -336,7 +366,7 @@ public class PacketHandler implements IListenDataPacket
 						}
 						else
 						{
-							log.trace("CloudMAC: Blocking frames from {} to {}.", sourceMac, destinationMac);
+							log.trace("Blocking frames from {} to {}.", sourceMac, destinationMac);
 
 							// Client tries to send data to a VAP it's not associated with, not allowed, block it.
 							flowUtil.block(ingressConnector, sourceMac, destinationMac, CLOUDMAC_FLOW_BLOCK_TIME);
@@ -344,7 +374,7 @@ public class PacketHandler implements IListenDataPacket
 					}
 					else
 					{
-						log.trace("CloudMAC:3 Blocking frames from {} to {}.", sourceMac, destinationMac);
+						log.trace("Blocking frames from {} to {}.", sourceMac, destinationMac);
 
 						// Unknown traffic possibly from another network, you can end up here if a tunnel times out but the client or access point still sends traffic.
 						flowUtil.block(ingressConnector, sourceMac, destinationMac, CLOUDMAC_FLOW_BLOCK_TIME);
