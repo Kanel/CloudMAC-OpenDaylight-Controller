@@ -10,6 +10,7 @@ import org.opendaylight.controller.sal.action.Action;
 import org.opendaylight.controller.sal.action.Controller;
 import org.opendaylight.controller.sal.action.Drop;
 import org.opendaylight.controller.sal.action.Enqueue;
+import org.opendaylight.controller.sal.action.Output;
 import org.opendaylight.controller.sal.core.Edge;
 import org.opendaylight.controller.sal.core.Node;
 import org.opendaylight.controller.sal.core.NodeConnector;
@@ -27,14 +28,12 @@ public class FlowUtility
 {
 	IFlowProgrammerService flowProgrammer;
 	IRouting routing;
-	private final short CLOUDMAC_ETHERNET_TYPE;
 	private static final Logger log = LoggerFactory.getLogger(FlowUtility.class);
 
 	public FlowUtility(IFlowProgrammerService flowProgrammer, IRouting routing)
 	{
 		this.flowProgrammer = flowProgrammer;
 		this.routing = routing;
-		this.CLOUDMAC_ETHERNET_TYPE = 0x1337;
 	}
 
 	void setRouting(IRouting routing)
@@ -57,7 +56,7 @@ public class FlowUtility
         this.flowProgrammer = null;
     }
 
-	// This makes the code much cleaner than when working with edges directly.
+	// Creates a list of NodeConenctors that form a path from a to b.
 	private ArrayList<NodeConnector> getRoute(NodeConnector a, NodeConnector b)
 	{
 		ArrayList<NodeConnector> list = new ArrayList<NodeConnector>();
@@ -91,27 +90,86 @@ public class FlowUtility
 
 		return list;
 	}
+	
+	// Creates a flow that matches the parameters.
+	private Flow createFlow(NodeConnector inPort, short etherType, byte[] source, byte[] sourceMask, byte[] destination, byte[] destinationMask, short priority, short timeout)
+	{
+		Match match = new Match();
+		Flow flow = new Flow();
+		
+		match = new Match();
+		match.setField(MatchType.IN_PORT, inPort);
+		match.setField(MatchType.DL_TYPE, etherType);
+		
+		if (source!= null)
+		{
+			if (sourceMask != null)
+			{
+				match.setField(MatchType.DL_SRC, source, sourceMask);
+			}
+			else
+			{
+				match.setField(MatchType.DL_SRC, source);
+			}
+		}
+		
+		if (destination != null)
+		{
+			if (destinationMask != null)
+			{
+				match.setField(MatchType.DL_DST, destination, destinationMask);
+			}
+			else 
+			{
+				match.setField(MatchType.DL_DST, destination);
+			}
+		}
+
+		flow.setActions(new ArrayList<Action>());
+		flow.setMatch(match);
+		flow.setPriority(priority);
+		flow.setHardTimeout(timeout);
+
+		return flow;
+	}
+	
+	public FlowUtilityResult createTunnel(NodeConnector a, NodeConnector b, byte[] mtMac, byte[] apMac, short[] ethernetTypes, short[] queueIndices, short priority, short timeout, short graceTime)
+	{
+		if (ethernetTypes.length != queueIndices.length)
+			return FlowUtilityResult.ARGUMENT_MISSMATCH;
+		
+		for (int i = 0; i < ethernetTypes.length; i++)
+		{
+			FlowUtilityResult result = createTunnel(a, b, mtMac, apMac, ethernetTypes[i], queueIndices[i], priority, timeout, graceTime);
+			
+			if (result != FlowUtilityResult.OK)
+			{
+				return result;
+			}
+		}
+		return FlowUtilityResult.OK;
+	}
 
 	// Add all necessary flows between a mobile terminal and a access point.
-	public FlowUtilityResult createTunnel(NodeConnector a, NodeConnector b, byte[] aMac, byte[] bMac, byte[] cMac, short timeout, short graceTime)
+	// 
+	private FlowUtilityResult createTunnel(NodeConnector a, NodeConnector b, byte[] mtMac, byte[] apMac, short ethernetType, short queueIndex, short priority, short timeout, short graceTime)
 	{
 		if (routing == null)
 			return FlowUtilityResult.NO_I_ROUTING;
 		if (flowProgrammer == null)
 			return FlowUtilityResult.NO_I_FLOW_PROGRAMMER;
 
-		log.trace("<<<<<<<<<----2.0");
-
 		ArrayList<NodeConnector> connectors = getRoute(a, b);
-		Match matchForward;
-		Match matchReverse;
-		Match matchBeacon;
 		Flow forward;
 		Flow backward;
 		Flow beacon;
-		byte[] mask = new byte[]{ 1, 0, 0, 0, 0, 0 }; // The first 2 bytes can dynamically change.
+		byte[] mask = new byte[]{ (byte)0x00, (byte)0x00, (byte)0xFF, (byte)0xFF, (byte)0xFF, (byte)0xFF }; // The first 2 bytes can dynamically change.
 		byte[] broadcast = new byte[] { (byte)0xFF, (byte)0xFF, (byte)0xFF, (byte)0xFF, (byte)0xFF, (byte)0xFF };
-		short basePriortity = 1000;
+		byte[] apMac2 = apMac.clone();
+		
+		// Todo: hope that opendaylight gets fixed.
+		apMac2[0] = 0x0a;
+		apMac2[1] = 0x0b;
 
 		if (connectors == null)
 		{
@@ -120,96 +178,36 @@ public class FlowUtility
 			return FlowUtilityResult.NO_PATH;
 		}
 
-		matchForward = new Match();
-		matchReverse = new Match();
-
-		log.trace("<<<<<<<<<----2.3");
-
 		// Initial node keeps track if the connection is active.
 		// Forward flow.
-		matchForward.setField(MatchType.DL_TYPE, CLOUDMAC_ETHERNET_TYPE);
-		matchForward.setField(MatchType.DL_SRC, aMac);
-		matchForward.setField(MatchType.DL_DST, bMac);
-		matchForward.setField(MatchType.IN_PORT, connectors.get(0));
-
-		log.trace("<<<<<<<<<----2.3.1");
-
-		forward = new Flow(matchForward, new ArrayList<Action>());
-		//forward.addAction(new Output(connectors.get(1)));
+		forward = createFlow(connectors.get(0), ethernetType, mtMac, null, apMac2, mask, (short)(priority + 1), (short)(timeout - graceTime));
 		forward.addAction(new Enqueue(connectors.get(1), 1));
-		forward.setPriority((short)(basePriortity + 1));
-		forward.setHardTimeout((short)(timeout - graceTime));
 
-		log.trace("<<<<<<<<<----2.3.2");
-		try
-		{
-			Status s = flowProgrammer.addFlow(connectors.get(0).getNode(), forward);
-			boolean staph = true;
-
-			staph = false;
-		}
-		catch (Exception e)
-		{
-			boolean staph = true;
-
-			staph = false;
-		}
-
-		log.trace("<<<<<<<<<----2.4");
+		flowProgrammer.addFlow(connectors.get(0).getNode(), forward);
 
 		// Forward flow.
-		matchForward.setField(MatchType.DL_TYPE, CLOUDMAC_ETHERNET_TYPE);
-		matchForward.setField(MatchType.DL_SRC, aMac);
-		matchForward.setField(MatchType.DL_DST, broadcast);
-		matchForward.setField(MatchType.IN_PORT, connectors.get(0));
-
-		forward = new Flow(matchForward, new ArrayList<Action>());
-		forward.addAction(new Enqueue(connectors.get(1), 1));
-		forward.setPriority((short)(basePriortity + 1));
-		forward.setHardTimeout((short)(timeout - graceTime));
+		forward = createFlow(connectors.get(0), ethernetType, mtMac, null, broadcast, null, priority, timeout);
+		forward.addAction(new Enqueue(connectors.get(1), queueIndex));
 
 		flowProgrammer.addFlow(connectors.get(0).getNode(), forward);
 
 		// This should cause the flows to be recreated before they timeout.
-		// TODO: find out if both directions need to be checked!
-		matchForward.setField(MatchType.DL_TYPE, CLOUDMAC_ETHERNET_TYPE);
-		matchForward.setField(MatchType.DL_SRC, aMac);
-		matchForward.setField(MatchType.DL_DST, bMac);
-		matchForward.setField(MatchType.IN_PORT, connectors.get(0));
-
-		forward = new Flow(matchForward, new ArrayList<Action>());
-		forward.addAction(new Enqueue(connectors.get(1), 1));
+		forward = createFlow(connectors.get(0), ethernetType, mtMac, null, apMac, mask, priority, timeout);		
+		forward.addAction(new Enqueue(connectors.get(1), queueIndex));
 		forward.addAction(new Controller());
-		forward.setPriority(basePriortity);
-		forward.setHardTimeout(timeout);
+		
 
 		flowProgrammer.addFlow(connectors.get(0).getNode(), forward);
 
 		// Backward flow.
-		matchReverse.setField(MatchType.DL_TYPE, CLOUDMAC_ETHERNET_TYPE);
-		matchReverse.setField(MatchType.DL_SRC, cMac);
-		matchReverse.setField(MatchType.DL_DST, aMac);
-		matchReverse.setField(MatchType.IN_PORT, connectors.get(1));
-
-		backward = new Flow(matchForward, new ArrayList<Action>());
-		backward.setMatch(matchReverse);
-		backward.addAction(new Enqueue(connectors.get(0), 1));
-		backward.setPriority(basePriortity);
-		backward.setHardTimeout(timeout);
+		backward = createFlow(connectors.get(1), ethernetType, apMac, mask, mtMac, null, priority, timeout);
+		backward.addAction(new Enqueue(connectors.get(0), queueIndex));
 
 		flowProgrammer.addFlow(connectors.get(0).getNode(), backward);
 
 		// Backward flow.
-		matchReverse.setField(MatchType.DL_TYPE, CLOUDMAC_ETHERNET_TYPE);
-		matchReverse.setField(MatchType.DL_SRC, cMac);
-		matchReverse.setField(MatchType.DL_DST, broadcast);
-		matchReverse.setField(MatchType.IN_PORT, connectors.get(1));
-
-		backward = new Flow(matchForward, new ArrayList<Action>());
-		backward.setMatch(matchReverse);
-		backward.addAction(new Enqueue(connectors.get(0), 1));
-		backward.setPriority(basePriortity);
-		backward.setHardTimeout(timeout);
+		backward = createFlow(connectors.get(1), ethernetType, apMac, mask, broadcast, null, priority, timeout);
+		backward.addAction(new Enqueue(connectors.get(0), queueIndex));
 
 		flowProgrammer.addFlow(connectors.get(0).getNode(), backward);
 
@@ -217,89 +215,40 @@ public class FlowUtility
 		for (int i = 2; i < connectors.size(); i += 2)
 		{
 			// Forward flow.
-			matchForward = new Match();
-			matchForward.setField(MatchType.DL_TYPE, CLOUDMAC_ETHERNET_TYPE);
-			matchForward.setField(MatchType.DL_SRC, aMac);
-			matchForward.setField(MatchType.DL_DST, bMac);
-			matchForward.setField(MatchType.IN_PORT, connectors.get(i + 0));
-
-			forward = new Flow(matchForward, new ArrayList<Action>());
+			forward = createFlow(connectors.get(i), ethernetType, mtMac, null, apMac2, mask, priority, timeout);
 			forward.addAction(new Enqueue(connectors.get(i + 1), 1));
-			forward.setPriority(basePriortity);
-			forward.setHardTimeout(timeout);
 
 			flowProgrammer.addFlow(connectors.get(i).getNode(), forward);
 
-
 			// Forward flow.
-			matchForward = new Match();
-			matchForward.setField(MatchType.DL_TYPE, CLOUDMAC_ETHERNET_TYPE);
-			matchForward.setField(MatchType.DL_SRC, aMac);
-			matchForward.setField(MatchType.DL_DST, broadcast);
-			matchForward.setField(MatchType.IN_PORT, connectors.get(i + 0));
-
-			forward = new Flow(matchForward, new ArrayList<Action>());
-			forward.addAction(new Enqueue(connectors.get(i + 1), 1));
-			forward.setPriority(basePriortity);
-			forward.setHardTimeout(timeout);
+			forward = createFlow(connectors.get(i), ethernetType, mtMac, null, broadcast, null, priority, timeout);
+			forward.addAction(new Enqueue(connectors.get(i + 1), queueIndex));
 
 			flowProgrammer.addFlow(connectors.get(i).getNode(), forward);
 
 			// Backward flow.
-			matchReverse = new Match();
-			matchReverse.setField(MatchType.DL_TYPE, CLOUDMAC_ETHERNET_TYPE);
-			matchReverse.setField(MatchType.DL_SRC, cMac);
-			matchReverse.setField(MatchType.DL_DST, aMac);
-			matchReverse.setField(MatchType.IN_PORT, connectors.get(i + 1));
-
-			backward = new Flow(matchReverse, new ArrayList<Action>());
-			backward.addAction(new Enqueue(connectors.get(i + 0), 1));
-			backward.setPriority(basePriortity);
-			backward.setHardTimeout(timeout);
+			backward = createFlow(connectors.get(i + 1), ethernetType, apMac, mask, mtMac, null, priority, timeout);
+			backward.addAction(new Enqueue(connectors.get(i), queueIndex));
 
 			flowProgrammer.addFlow(connectors.get(i).getNode(), backward);
 
 			// Backward flow.
-			matchReverse = new Match();
-			matchReverse.setField(MatchType.DL_TYPE, CLOUDMAC_ETHERNET_TYPE);
-			matchReverse.setField(MatchType.DL_SRC, cMac);
-			matchReverse.setField(MatchType.DL_DST, broadcast);
-			matchReverse.setField(MatchType.IN_PORT, connectors.get(i + 1));
-
-			backward = new Flow(matchReverse, new ArrayList<Action>());
-			backward.addAction(new Enqueue(connectors.get(i + 0), 1));
-			backward.setPriority(basePriortity);
-			backward.setHardTimeout(timeout);
+			backward = createFlow(connectors.get(i + 1), ethernetType, apMac, mask, broadcast, null, priority, timeout);
+			backward.addAction(new Enqueue(connectors.get(i), queueIndex));
 
 			flowProgrammer.addFlow(connectors.get(i).getNode(), backward);
 		}
 
 		// Beacon frames have to reach the controller periodically.
-		matchBeacon = new Match();
-		matchBeacon.setField(MatchType.DL_TYPE, CLOUDMAC_ETHERNET_TYPE);
-		matchBeacon.setField(MatchType.DL_SRC, cMac);
-		matchBeacon.setField(MatchType.DL_DST, broadcast);
-		matchBeacon.setField(MatchType.IN_PORT, connectors.get(connectors.size() - 1));
-
-		beacon = new Flow(matchBeacon, new ArrayList<Action>());
-		beacon.addAction(new Enqueue(connectors.get(connectors.size() - 2), 1));
-		beacon.setPriority((short)(basePriortity + 1));
-		beacon.setHardTimeout((short)(timeout - graceTime - 1));
+		beacon = createFlow(connectors.get(connectors.size() - 1), ethernetType, apMac, mask, broadcast, null, (short)(priority + 1), (short)(timeout - graceTime));
+		beacon.addAction(new Enqueue(connectors.get(connectors.size() - 2), queueIndex));
 
 		flowProgrammer.addFlow(connectors.get(connectors.size() - 1).getNode(), beacon);
 
 		// Beacon frames have to reach the controller periodically.
-		matchBeacon = new Match();
-		matchBeacon.setField(MatchType.DL_TYPE, CLOUDMAC_ETHERNET_TYPE);
-		matchBeacon.setField(MatchType.DL_SRC, cMac);
-		matchBeacon.setField(MatchType.DL_DST, broadcast);
-		matchBeacon.setField(MatchType.IN_PORT, connectors.get(connectors.size() - 1));
-
-		beacon = new Flow(matchBeacon, new ArrayList<Action>());
-		beacon.addAction(new Enqueue(connectors.get(connectors.size() - 2), 1));
+		beacon = createFlow(connectors.get(connectors.size() - 1), ethernetType, apMac, mask, broadcast, null, (short)(priority + 1), timeout);
+		beacon.addAction(new Enqueue(connectors.get(connectors.size() - 2), queueIndex));
 		beacon.addAction(new Controller());
-		beacon.setPriority((short)(basePriortity + 1));
-		beacon.setHardTimeout(timeout);
 
 		flowProgrammer.addFlow(connectors.get(connectors.size() - 1).getNode(), beacon);
 
@@ -307,7 +256,7 @@ public class FlowUtility
 	}
 
 	// Add all necessary flows between a mobile terminal and a access point.
-	public FlowUtilityResult createBeaconTunnel(NodeConnector a, NodeConnector b, byte[] accessPointMac, short timeout)
+	public FlowUtilityResult createBeaconTunnel(NodeConnector a, NodeConnector b, byte[] accessPointMac, short ethernetType, short priority, short queueIndex, short timeout)
 	{
 		if (routing == null)
 			return FlowUtilityResult.NO_I_ROUTING;
@@ -315,10 +264,7 @@ public class FlowUtility
 			return FlowUtilityResult.NO_I_FLOW_PROGRAMMER;
 
 		ArrayList<NodeConnector> connectors = getRoute(a, b);
-		Match matchForward;
-		Match matchReverse;
-		Flow forward;
-		Flow backward;
+		Flow flow;
 		byte[] mask = new byte[]{ 0, 0, (byte)0xff, (byte)0xff, (byte)0xff, (byte)0xff }; // The first 2 bytes can dynamically change.
 
 		if (connectors == null)
@@ -328,65 +274,44 @@ public class FlowUtility
 			return FlowUtilityResult.NO_PATH;
 		}
 
-		// The rest of the flows.
 		for (int i = 0; i < connectors.size(); i += 2)
 		{
-			// Forward flow.
-			matchForward = new Match();
-			matchForward.setField(MatchType.DL_TYPE, CLOUDMAC_ETHERNET_TYPE);
-			matchForward.setField(MatchType.DL_SRC, accessPointMac, mask);
-			matchForward.setField(MatchType.IN_PORT, connectors.get(i + 0));
+			flow = createFlow(connectors.get(i), ethernetType, accessPointMac, mask, null, null, priority, timeout);
+			flow.addAction(new Enqueue(connectors.get(i + 1), queueIndex));
 
-			forward = new Flow(matchForward, new ArrayList<Action>());
-			forward.addAction(new Enqueue(connectors.get(i + 1), 1));
-			forward.setHardTimeout(timeout);
-			forward.setPriority((short)(1000 + 1));
-
-			flowProgrammer.addFlow(connectors.get(i).getNode(), forward);
-
-			/*// Backward flow.
-			matchReverse = new Match();
-			matchReverse.setField(MatchType.DL_TYPE, CLOUDMAC_ETHERNET_TYPE);
-			matchReverse.setField(MatchType.DL_DST, accessPointMac);
-			matchReverse.setField(MatchType.IN_PORT, connectors.get(i + 1));
-
-			backward = new Flow(matchReverse, new ArrayList<Action>());
-			backward.addAction(new Enqueue(connectors.get(i + 0), 1));
-			backward.setHardTimeout(timeout);
-
-			flowProgrammer.addFlow(connectors.get(i).getNode(), backward);*/
+			flowProgrammer.addFlow(connectors.get(i).getNode(), flow);
 		}
 		return FlowUtilityResult.OK;
 	}
 
-	public FlowUtilityResult block(NodeConnector connector, byte[] sourceMac, byte[] destiantionMac, short timeout)
+	private FlowUtilityResult block(NodeConnector connector, byte[] sourceMac, byte[] destiantionMac, short ethernetType, short priority, short timeout)
 	{
 		if (flowProgrammer == null)
 			return FlowUtilityResult.NO_I_FLOW_PROGRAMMER;
-
-		Match match = new Match();
-		Flow flow = new Flow();
-		byte[] mask = new byte[]{ 0, 0, (byte)0xff, (byte)0xff, (byte)0xff, (byte)0xff }; // The first 2 bytes can dynamically change.
-
-		match.setField(MatchType.IN_PORT, connector);
-		match.setField(MatchType.DL_SRC, sourceMac.clone(), mask);
-		match.setField(MatchType.DL_DST, destiantionMac.clone(), mask);
-
-		flow.setActions(new ArrayList<Action>());
+		
+		Flow flow = createFlow(connector, ethernetType, sourceMac, null, destiantionMac, null, priority, timeout);
+		
 		flow.addAction(new Drop());
-		flow.setMatch(match);
-		flow.setHardTimeout(timeout);
-		flow.setPriority((short)2000);
 
-		Node node = connector.getNode();
+		flowProgrammer.addFlow(connector.getNode(), flow);
 
-		Status stat = flowProgrammer.addFlow(node, flow);
-
-		if (!stat.isSuccess())
+		return FlowUtilityResult.OK;
+	}
+	
+	public FlowUtilityResult block(NodeConnector connector, byte[] sourceMac, byte[] destiantionMac, short[] ethernetType, short priority, short timeout)
+	{
+		if (flowProgrammer == null)
+			return FlowUtilityResult.NO_I_FLOW_PROGRAMMER;
+		
+		for (int i = 0; i < ethernetType.length; i++)
 		{
-			log.warn("Flow: {}, {}", flow, stat.getDescription());
+			FlowUtilityResult result = block(connector, sourceMac, destiantionMac, ethernetType[i], priority, timeout);
+			
+			if (result != FlowUtilityResult.OK)
+			{
+				return result;
+			}
 		}
-
 		return FlowUtilityResult.OK;
 	}
 

@@ -1,18 +1,32 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <classpath>
-  <classpathentry kind="src" path="src/main/java" including="**/*.java"/>
-  <classpathentry kind="output" path="target/classes"/>
-  <classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
-  <classpathentry kind="var" path="M2_REPO/org/sdnhub/odl/protocol_plugins.openflow13/0.1.0-SNAPSHOT/protocol_plugins.openflow13-0.1.0-SNAPSHOT.jar"/>
-  <classpathentry kind="var" path="M2_REPO/org/opendaylight/controller/sal/0.7.0/sal-0.7.0.jar" sourcepath="M2_REPO/org/opendaylight/controller/sal/0.7.0/sal-0.7.0-sources.jar"/>
-  <classpathentry kind="var" path="M2_REPO/org/slf4j/slf4j-api/1.7.2/slf4j-api-1.7.2.jar" sourcepath="M2_REPO/org/slf4j/slf4j-api/1.7.2/slf4j-api-1.7.2-sources.jar"/>
-  <classpathentry kind="var" path="M2_REPO/org/apache/felix/org.apache.felix.dependencymanager/3.1.0/org.apache.felix.dependencymanager-3.1.0.jar" sourcepath="M2_REPO/org/apache/felix/org.apache.felix.dependencymanager/3.1.0/org.apache.felix.dependencymanager-3.1.0-sources.jar"/>
-  <classpathentry kind="var" path="M2_REPO/org/osgi/org.osgi.core/4.2.0/org.osgi.core-4.2.0.jar" sourcepath="M2_REPO/org/osgi/org.osgi.core/4.2.0/org.osgi.core-4.2.0-sources.jar"/>
-  <classpathentry kind="var" path="M2_REPO/org/osgi/org.osgi.compendium/4.2.0/org.osgi.compendium-4.2.0.jar" sourcepath="M2_REPO/org/osgi/org.osgi.compendium/4.2.0/org.osgi.compendium-4.2.0-sources.jar"/>
-  <classpathentry kind="var" path="M2_REPO/org/apache/commons/commons-lang3/3.1/commons-lang3-3.1.jar" sourcepath="M2_REPO/org/apache/commons/commons-lang3/3.1/commons-lang3-3.1-sources.jar"/>
-  <classpathentry kind="var" path="M2_REPO/org/opendaylight/controller/sal.connection/0.1.1/sal.connection-0.1.1.jar"/>
-  <classpathentry kind="var" path="M2_REPO/junit/junit/4.8.1/junit-4.8.1.jar"/>
-  <classpathentry kind="var" path="M2_REPO/equinoxSDK381/org.eclipse.osgi/3.8.1.v20120830-144521/org.eclipse.osgi-3.8.1.v20120830-144521.jar"/>
-  <classpathentry kind="var" path="M2_REPO/org/sdnhub/openflow/jopenflow/1.3.0-SNAPSHOT/jopenflow-1.3.0-SNAPSHOT.jar"/>
-  <classpathentry kind="var" path="M2_REPO/org/sdnhub/odl/ofbroker/0.1.0-SNAPSHOT/ofbroker-0.1.0-SNAPSHOT.jar"/>
+	<classpathentry kind="src" output="target/classes" path="src/main/java">
+		<attributes>
+			<attribute name="optional" value="true"/>
+			<attribute name="maven.pomderived" value="true"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="var" path="M2_REPO/org/opendaylight/controller/sal/0.8.1-Helium/sal-0.8.1-Helium.jar"/>
+	<classpathentry kind="var" path="M2_REPO/org/apache/commons/commons-lang3/3.1/commons-lang3-3.1.jar"/>
+	<classpathentry kind="var" path="M2_REPO/org/apache/felix/org.apache.felix.dependencymanager/3.1.0/org.apache.felix.dependencymanager-3.1.0.jar"/>
+	<classpathentry kind="var" path="M2_REPO/org/osgi/org.osgi.core/5.0.0/org.osgi.core-5.0.0.jar"/>
+	<classpathentry kind="var" path="M2_REPO/org/osgi/org.osgi.compendium/4.2.0/org.osgi.compendium-4.2.0.jar"/>
+	<classpathentry kind="var" path="M2_REPO/org/slf4j/slf4j-api/1.7.2/slf4j-api-1.7.2.jar"/>
+	<classpathentry kind="src" output="target/test-classes" path="src/test/java">
+		<attributes>
+			<attribute name="optional" value="true"/>
+			<attribute name="maven.pomderived" value="true"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER/org.eclipse.jdt.internal.debug.ui.launcher.StandardVMType/JavaSE-1.7">
+		<attributes>
+			<attribute name="maven.pomderived" value="true"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="con" path="org.eclipse.m2e.MAVEN2_CLASSPATH_CONTAINER">
+		<attributes>
+			<attribute name="maven.pomderived" value="true"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="output" path="target/classes"/>
 </classpath>

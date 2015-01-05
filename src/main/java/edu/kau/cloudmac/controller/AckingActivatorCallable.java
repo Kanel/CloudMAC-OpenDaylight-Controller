@@ -30,7 +30,6 @@ public class AckingActivatorCallable implements Callable<String>
     {
     	try
 		{
-    		log.trace("<<<-----");
 		    Socket socket = new Socket(hostname, port);
 		    PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
 		    BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
@@ -39,7 +38,6 @@ public class AckingActivatorCallable implements Callable<String>
 		    out.flush();
 		    in.readLine();
 		    socket.close();
-		    log.trace("----->>>");
 		}
 		catch (Exception e)
 		{
