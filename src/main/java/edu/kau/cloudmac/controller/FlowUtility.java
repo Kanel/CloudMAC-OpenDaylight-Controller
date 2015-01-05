@@ -10,9 +10,7 @@ import org.opendaylight.controller.sal.action.Action;
 import org.opendaylight.controller.sal.action.Controller;
 import org.opendaylight.controller.sal.action.Drop;
 import org.opendaylight.controller.sal.action.Enqueue;
-import org.opendaylight.controller.sal.action.Output;
 import org.opendaylight.controller.sal.core.Edge;
-import org.opendaylight.controller.sal.core.Node;
 import org.opendaylight.controller.sal.core.NodeConnector;
 import org.opendaylight.controller.sal.core.Path;
 import org.opendaylight.controller.sal.flowprogrammer.Flow;
@@ -20,7 +18,6 @@ import org.opendaylight.controller.sal.flowprogrammer.IFlowProgrammerService;
 import org.opendaylight.controller.sal.match.Match;
 import org.opendaylight.controller.sal.match.MatchType;
 import org.opendaylight.controller.sal.routing.IRouting;
-import org.opendaylight.controller.sal.utils.Status;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -319,7 +316,7 @@ public class FlowUtility
 	{
 			AckingActivatorCallable activator = new AckingActivatorCallable(hostname, port, mac, timeout);
 			FutureTask<String> futureTask = new FutureTask<String>(activator);
-			ExecutorService executor =Executors.newSingleThreadExecutor();
+			ExecutorService executor = Executors.newSingleThreadExecutor();
 
 			executor.execute(futureTask);
 	}

@@ -48,11 +48,12 @@ public enum FrameTypes
 
 
 
+	@SuppressWarnings("unused")
 	private int value;
 
-        private FrameTypes(int value) {
-            this.value = value;
-        }
+    private FrameTypes(int value) {
+        this.value = value;
+    }
 
 	// JAVA!?!?=!
 	public static FrameTypes lookup(int lookupValue)
