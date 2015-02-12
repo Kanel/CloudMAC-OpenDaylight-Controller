@@ -318,12 +318,17 @@ public class PacketHandler implements IListenDataPacket
         }
     }
 
-	private boolean isPartOfTest(byte[] mac)
+	private boolean isPartOfTest(byte[] source, byte[] destination)
 	{
 		byte[] mobileClient1 = new byte[] { 0, 38, 90, 11, 54, 124 }; // D-Link (mine)
 		byte[] mobileClient2 = new byte[] { 0x74, 0x2f, 0x68, (byte) 0xd2, 0x43, 0x17 }; // Jonathan's laptop
+		byte[] vap = new byte[] { 0x0a, 0x0b };
+		byte[] broadcast = new byte[] { (byte)0xFF, (byte)0xFF, (byte)0xFF, (byte)0xFF, (byte)0xFF, (byte)0xFF };
 
-		return Arrays.equals(mac, mobileClient1) || Arrays.equals(mac, mobileClient2);
+		return 	Arrays.equals(source, mobileClient1) 
+			 || Arrays.equals(source, mobileClient2)
+			 || Arrays.equals(destination, mobileClient1) 
+			 || Arrays.equals(destination, mobileClient2);
 	}
 
 	@Override
@@ -343,6 +348,7 @@ public class PacketHandler implements IListenDataPacket
 		{
 			NodeConnector ingressConnector = inPkt.getIncomingNodeConnector();
 			Ethernet ethPkt = (Ethernet)l2pkt;
+			// Source and Destination should properly be retrieved from the frame rather than the Ethernet header.
 			byte[] sourceMac = ethPkt.getSourceMACAddress();
 			byte[] destinationMac = ethPkt.getDestinationMACAddress();
 			byte[] broadcast = new byte[] { (byte)0xFF, (byte)0xFF, (byte)0xFF, (byte)0xFF, (byte)0xFF, (byte)0xFF };
@@ -410,17 +416,17 @@ public class PacketHandler implements IListenDataPacket
 						{
 							log.trace("Blocking beacon frames from access point({}).", sourceMac);
 
-							flowUtil.block(ingressConnector, sourceMac, destinationMac, config.getEthernetTypes(), config.getBlockPriority(), config.getBlockFlowDuration());
+							flowUtil.block(ingressConnector, sourceMac, destinationMac, config.getEthernetTypes(), (short)(config.getBlockPriority() + 10), config.getBlockFlowDuration());
 						}
 					}
 					break;
 
 				case Management_Probe_Request:
-					if (!isPartOfTest(sourceMac))
+					if (!isPartOfTest(sourceMac, destinationMac))
 					{
 						log.trace("Not part of test, blocking frames from {} to {}.", sourceMac, destinationMac);
 
-						flowUtil.block(ingressConnector, sourceMac, destinationMac, config.getEthernetTypes(), config.getBlockPriority(), config.getBlockFlowDuration());
+						flowUtil.block(ingressConnector, sourceMac, destinationMac, config.getEthernetTypes(), (short)(config.getBlockPriority() + 9), config.getBlockFlowDuration());
 
 						break;
 					}
@@ -446,11 +452,11 @@ public class PacketHandler implements IListenDataPacket
 					break;
 
 				case Management_Association_request:
-					if (!isPartOfTest(sourceMac))
+					if (!isPartOfTest(sourceMac, destinationMac))
 					{
 						log.trace("Not part of test, blocking frames from {} to {}.", sourceMac, destinationMac);
 
-						flowUtil.block(ingressConnector, sourceMac, destinationMac, config.getEthernetTypes(), config.getBlockPriority(), config.getBlockFlowDuration());
+						flowUtil.block(ingressConnector, sourceMac, destinationMac, config.getEthernetTypes(), (short)(config.getBlockPriority() + 8), config.getBlockFlowDuration());
 
 						break;
 					}
@@ -466,7 +472,7 @@ public class PacketHandler implements IListenDataPacket
 						{
 							log.trace("Blocking frames from {} to {}.", sourceMac, destinationMac);
 
-							flowUtil.block(ingressConnector, sourceMac, destinationMac, config.getEthernetTypes(), config.getBlockPriority(), config.getBlockFlowDuration());
+							flowUtil.block(ingressConnector, sourceMac, destinationMac, config.getEthernetTypes(), (short)(config.getBlockPriority() + 7), config.getBlockFlowDuration());
 						}
 						// TODO: Handle case of client trying to connect to another VAP. For now just block it.
 					}
@@ -491,7 +497,7 @@ public class PacketHandler implements IListenDataPacket
 								log.trace("Blocking frames from {} to {}.", sourceMac, destinationMac);
 
 								// Access point is in use, nothing we can do other than ignore the packets.
-								flowUtil.block(ingressConnector, sourceMac, destinationMac, config.getEthernetTypes(), config.getBlockPriority(), config.getBlockFlowDuration());
+								flowUtil.block(ingressConnector, sourceMac, destinationMac, config.getEthernetTypes(), (short)(config.getBlockPriority() + 1), config.getBlockFlowDuration());
 							}
 						}
 						else
@@ -499,22 +505,12 @@ public class PacketHandler implements IListenDataPacket
 							log.trace("Blocking frames from {} to {}.", sourceMac, destinationMac);
 
 							// This is not our problem, simply block these packets.
-							flowUtil.block(ingressConnector, sourceMac, destinationMac, config.getEthernetTypes(), config.getBlockPriority(), config.getBlockFlowDuration());
+							flowUtil.block(ingressConnector, sourceMac, destinationMac, config.getEthernetTypes(), (short)(config.getBlockPriority() + 2), config.getBlockFlowDuration());
 						}
 					}
 					break;
 
 				default:
-					if (!isPartOfTest(sourceMac))
-					{
-						log.trace("Not part of test, blocking frames from {} to {}.", sourceMac, destinationMac);
-
-						flowUtil.block(ingressConnector, sourceMac, destinationMac, config.getEthernetTypes(), config.getBlockPriority(), config.getBlockFlowDuration());
-
-						break;
-					}
-
-
 					// Does the traffic belong to a known tunnel?
 					if (tunnels.contains(sourceMac) && accessPoints.contains(destinationMac))
 					{
@@ -546,7 +542,7 @@ public class PacketHandler implements IListenDataPacket
 							log.trace("Blocking frames from {} to {}.", sourceMac, destinationMac);
 
 							// Client tries to send data to a VAP it's not associated with, not allowed, block it.
-							flowUtil.block(ingressConnector, sourceMac, destinationMac, config.getEthernetTypes(), config.getBlockPriority(), config.getBlockFlowDuration());
+							flowUtil.block(ingressConnector, sourceMac, destinationMac, config.getEthernetTypes(), (short)(config.getBlockPriority() + 4), config.getBlockFlowDuration());
 						}
 					}
 					else
@@ -554,7 +550,7 @@ public class PacketHandler implements IListenDataPacket
 						log.trace("Blocking frames from {} to {}.", sourceMac, destinationMac);
 
 						// Unknown traffic possibly from another network, you can end up here if a tunnel times out but the client or access point still sends traffic.
-						flowUtil.block(ingressConnector, sourceMac, destinationMac, config.getEthernetTypes(), config.getBlockPriority(), config.getBlockFlowDuration());
+						flowUtil.block(ingressConnector, sourceMac, destinationMac, config.getEthernetTypes(), (short)(config.getBlockPriority() + 5), config.getBlockFlowDuration());
 					}
 					break;
 				}

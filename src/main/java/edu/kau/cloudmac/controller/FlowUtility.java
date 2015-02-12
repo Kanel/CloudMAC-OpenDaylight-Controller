@@ -165,6 +165,8 @@ public class FlowUtility
 		byte[] apMac2 = apMac.clone();
 		
 		// Todo: hope that opendaylight gets fixed.
+		apMac[0] = 0x00;
+		apMac[1] = 0x6c;
 		apMac2[0] = 0x0a;
 		apMac2[1] = 0x0b;
 
@@ -177,7 +179,7 @@ public class FlowUtility
 
 		// Initial node keeps track if the connection is active.
 		// Forward flow.
-		forward = createFlow(connectors.get(0), ethernetType, mtMac, null, apMac2, mask, (short)(priority + 1), (short)(timeout - graceTime));
+		forward = createFlow(connectors.get(0), ethernetType, mtMac, null, apMac2, null, (short)(priority + 1), (short)(timeout - graceTime));
 		forward.addAction(new Enqueue(connectors.get(1), 1));
 
 		flowProgrammer.addFlow(connectors.get(0).getNode(), forward);
@@ -189,7 +191,7 @@ public class FlowUtility
 		flowProgrammer.addFlow(connectors.get(0).getNode(), forward);
 
 		// This should cause the flows to be recreated before they timeout.
-		forward = createFlow(connectors.get(0), ethernetType, mtMac, null, apMac, mask, priority, timeout);		
+		forward = createFlow(connectors.get(0), ethernetType, mtMac, null, apMac, null, priority, timeout);		
 		forward.addAction(new Enqueue(connectors.get(1), queueIndex));
 		forward.addAction(new Controller());
 		
@@ -197,13 +199,13 @@ public class FlowUtility
 		flowProgrammer.addFlow(connectors.get(0).getNode(), forward);
 
 		// Backward flow.
-		backward = createFlow(connectors.get(1), ethernetType, apMac, mask, mtMac, null, priority, timeout);
+		backward = createFlow(connectors.get(1), ethernetType, apMac, null, mtMac, null, priority, timeout);
 		backward.addAction(new Enqueue(connectors.get(0), queueIndex));
 
 		flowProgrammer.addFlow(connectors.get(0).getNode(), backward);
 
 		// Backward flow.
-		backward = createFlow(connectors.get(1), ethernetType, apMac, mask, broadcast, null, priority, timeout);
+		backward = createFlow(connectors.get(1), ethernetType, apMac, null, broadcast, null, priority, timeout);
 		backward.addAction(new Enqueue(connectors.get(0), queueIndex));
 
 		flowProgrammer.addFlow(connectors.get(0).getNode(), backward);
@@ -212,7 +214,7 @@ public class FlowUtility
 		for (int i = 2; i < connectors.size(); i += 2)
 		{
 			// Forward flow.
-			forward = createFlow(connectors.get(i), ethernetType, mtMac, null, apMac2, mask, priority, timeout);
+			forward = createFlow(connectors.get(i), ethernetType, mtMac, null, apMac2, null, priority, timeout);
 			forward.addAction(new Enqueue(connectors.get(i + 1), 1));
 
 			flowProgrammer.addFlow(connectors.get(i).getNode(), forward);
@@ -224,26 +226,26 @@ public class FlowUtility
 			flowProgrammer.addFlow(connectors.get(i).getNode(), forward);
 
 			// Backward flow.
-			backward = createFlow(connectors.get(i + 1), ethernetType, apMac, mask, mtMac, null, priority, timeout);
+			backward = createFlow(connectors.get(i + 1), ethernetType, apMac, null, mtMac, null, priority, timeout);
 			backward.addAction(new Enqueue(connectors.get(i), queueIndex));
 
 			flowProgrammer.addFlow(connectors.get(i).getNode(), backward);
 
 			// Backward flow.
-			backward = createFlow(connectors.get(i + 1), ethernetType, apMac, mask, broadcast, null, priority, timeout);
+			backward = createFlow(connectors.get(i + 1), ethernetType, apMac, null, broadcast, null, priority, timeout);
 			backward.addAction(new Enqueue(connectors.get(i), queueIndex));
 
 			flowProgrammer.addFlow(connectors.get(i).getNode(), backward);
 		}
 
 		// Beacon frames have to reach the controller periodically.
-		beacon = createFlow(connectors.get(connectors.size() - 1), ethernetType, apMac, mask, broadcast, null, (short)(priority + 1), (short)(timeout - graceTime));
+		beacon = createFlow(connectors.get(connectors.size() - 1), ethernetType, apMac, null, broadcast, null, (short)(priority + 1), (short)(timeout - graceTime));
 		beacon.addAction(new Enqueue(connectors.get(connectors.size() - 2), queueIndex));
 
 		flowProgrammer.addFlow(connectors.get(connectors.size() - 1).getNode(), beacon);
 
 		// Beacon frames have to reach the controller periodically.
-		beacon = createFlow(connectors.get(connectors.size() - 1), ethernetType, apMac, mask, broadcast, null, (short)(priority + 1), timeout);
+		beacon = createFlow(connectors.get(connectors.size() - 1), ethernetType, apMac, null, broadcast, null, (short)(priority + 1), timeout);
 		beacon.addAction(new Enqueue(connectors.get(connectors.size() - 2), queueIndex));
 		beacon.addAction(new Controller());
 

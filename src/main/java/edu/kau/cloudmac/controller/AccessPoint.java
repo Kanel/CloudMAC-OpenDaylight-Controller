@@ -56,4 +56,17 @@ public class AccessPoint extends Endpoint
 	{
 		return expiration < System.currentTimeMillis();
 	}
+	
+	public boolean equals(AccessPoint accessPoint)
+	{
+		return equals(accessPoint.getMacAdress());
+	}
+	
+	public boolean equals(byte[] other)
+	{
+		return mac[2] == other[2] &&
+			   mac[3] == other[3] &&
+			   mac[4] == other[4] &&
+			   mac[5] == other[5];
+	}
 }

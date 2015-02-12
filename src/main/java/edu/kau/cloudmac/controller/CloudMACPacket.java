@@ -56,7 +56,7 @@ public class CloudMACPacket
 		final int HEADER_802_1Q_ID = 0x8100;
 		byte[] data = packet.getPacketData();
 		short offset = (short)(MAC_LENGTH + MAC_LENGTH + ETHER_TYPE_LENGTH);
-		int etherType = (data[MAC_LENGTH + MAC_LENGTH] << 8) | data[MAC_LENGTH + MAC_LENGTH + 1];
+		int etherType = (data[MAC_LENGTH + MAC_LENGTH] << 8) | data[MAC_LENGTH + MAC_LENGTH + 1]; // lots of assumptions here
 
 		// Check if there is a 802.1Q header.
 		if (etherType == HEADER_802_1Q_ID) // <- Why do I even check?

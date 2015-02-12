@@ -1,6 +1,6 @@
 Manifest-Version: 1.0
-Bnd-LastModified: 1420490201398
-Build-Jdk: 1.7.0_65
+Bnd-LastModified: 1423755820403
+Build-Jdk: 1.7.0_75
 Built-By: jc
 Bundle-Activator: edu.kau.cloudmac.controller.Activator
 Bundle-ManifestVersion: 2

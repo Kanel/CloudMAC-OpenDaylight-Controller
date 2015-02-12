@@ -41,10 +41,7 @@ public class AccessPointManager
 		{
 			byte[] a = element.getMacAdress();
 
-			if (a[2] == mac[2] &&
-				a[3] == mac[3] &&
-				a[4] == mac[4] &&
-				a[5] == mac[5])
+			if (element.equals(mac))
 			{
 				return element;
 			}

@@ -62,7 +62,7 @@ public class TunnelManager
 
 		for (MobileTerminalTunnel element : mobileTerminals)
 		{
-			if (Arrays.equals(element.getAccessPoint().getMacAdress(), mac))
+			if (element.getAccessPoint().equals(mac))
 			{
 				return element;
 			}
