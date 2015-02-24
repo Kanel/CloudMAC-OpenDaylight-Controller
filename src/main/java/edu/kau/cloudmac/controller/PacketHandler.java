@@ -343,6 +343,20 @@ public class PacketHandler implements IListenDataPacket
 			return PacketResult.IGNORED;
 
 		Packet l2pkt = dataPacketService.decodeDataPacket(inPkt);
+		
+		byte[] bah = new byte[] { 0x01, 0x02, 0x03, 0x04, 0x05, 0x06 };
+		Ethernet e = (Ethernet)l2pkt;
+		byte[] s = e.getSourceMACAddress();
+		byte[] d = e.getDestinationMACAddress();
+		
+		if (Arrays.equals(s, bah) || Arrays.equals(d, bah))
+		{
+			byte[] bytes = e.getRawPayload();
+			
+			boolean staph = true;
+			
+			staph = false;
+		}
 
 		if (CloudMACPacket.isCloudMAC(l2pkt))
 		{

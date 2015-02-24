@@ -59,7 +59,7 @@ public enum FrameTypes
 	public static FrameTypes lookup(int lookupValue)
 	{
 		switch (lookupValue)
-                {
+        {
 			case 0b00000000:
 				return  Management_Association_request;
 
