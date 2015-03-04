@@ -1,4 +1,4 @@
-package sFlow.SampledHeaders;
+package sFlow.FlowDataTypes;
 
 public class SampledEthernet
 {

@@ -39,8 +39,6 @@ public class AccessPointManager
 
 		for (AccessPoint element : accessPoints)
 		{
-			byte[] a = element.getMacAdress();
-
 			if (element.equals(mac))
 			{
 				return element;

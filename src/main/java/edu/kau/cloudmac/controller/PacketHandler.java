@@ -1,6 +1,7 @@
 package edu.kau.cloudmac.controller;
 
 import edu.kau.ini.Parser;
+
 import java.util.Arrays;
 import java.util.Map;
 
@@ -322,8 +323,6 @@ public class PacketHandler implements IListenDataPacket
 	{
 		byte[] mobileClient1 = new byte[] { 0, 38, 90, 11, 54, 124 }; // D-Link (mine)
 		byte[] mobileClient2 = new byte[] { 0x74, 0x2f, 0x68, (byte) 0xd2, 0x43, 0x17 }; // Jonathan's laptop
-		byte[] vap = new byte[] { 0x0a, 0x0b };
-		byte[] broadcast = new byte[] { (byte)0xFF, (byte)0xFF, (byte)0xFF, (byte)0xFF, (byte)0xFF, (byte)0xFF };
 
 		return 	Arrays.equals(source, mobileClient1) 
 			 || Arrays.equals(source, mobileClient2)
@@ -349,10 +348,13 @@ public class PacketHandler implements IListenDataPacket
 		byte[] s = e.getSourceMACAddress();
 		byte[] d = e.getDestinationMACAddress();
 		
+		// Remove this if later!
 		if (Arrays.equals(s, bah) || Arrays.equals(d, bah))
 		{
+			@SuppressWarnings("unused")
 			byte[] bytes = e.getRawPayload();
 			
+			@SuppressWarnings("unused")
 			boolean staph = true;
 			
 			staph = false;

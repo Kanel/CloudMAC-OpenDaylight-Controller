@@ -2,22 +2,12 @@ package sFlow;
 
 public class SampleRecord
 {
-	private DataFormat sampleType;
-	private byte sampleData[];
+	protected DataFormat type;
 	
-	public SampleRecord(DataFormat sampleType, byte sampleData[])
-	{
-		this.sampleType = sampleType;
-		this.sampleData = sampleData;
-	}
+	protected SampleRecord() { }
 	
-	public DataFormat getSampletype()
+	public DataFormat getType()
 	{
-		return sampleType;
-	}
-	
-	public byte[] getSampleData()
-	{
-		return sampleData;
+		return type;
 	}
 }

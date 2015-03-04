@@ -1,19 +1,19 @@
-package sFlow.SampledHeaders;
+package sFlow.FlowDataTypes;
 
-import java.net.Inet6Address;
+import java.net.Inet4Address;
 
-public class SampledIPv6
+public class SampledIPv4
 {
 	private long length;
 	private long protocol;
-	private Inet6Address source;
-	private Inet6Address destination;
+	private Inet4Address source;
+	private Inet4Address destination;
 	private long sourcePort;
 	private long destinationPort;
 	private long tcpFlags;
-	private long priority;
+	private long tos;
 	
-	public SampledIPv6(long length, long protocol, Inet6Address source, Inet6Address destination, long sourcePort, long destinationPort, long tcpFlags, long priority)
+	public SampledIPv4(long length, long protocol, Inet4Address source, Inet4Address destination, long sourcePort, long destinationPort, long tcpFlags, long tos)
 	{
 		this.length = length;
 		this.protocol = protocol;
@@ -22,7 +22,7 @@ public class SampledIPv6
 		this.sourcePort = sourcePort;
 		this.destinationPort = destinationPort;
 		this.tcpFlags = tcpFlags;
-		this.priority = priority;
+		this.tos = tos;
 	}
 	
 	public long getLength()
@@ -35,12 +35,12 @@ public class SampledIPv6
 		return protocol;
 	}
 	
-	public Inet6Address getSource()
+	public Inet4Address getSource()
 	{
 		return source;
 	}
 	
-	public Inet6Address getDestination()
+	public Inet4Address getDestination()
 	{
 		return destination;
 	}
@@ -62,6 +62,6 @@ public class SampledIPv6
 	
 	public long getTos()
 	{
-		return priority;
+		return tos;
 	}
 }

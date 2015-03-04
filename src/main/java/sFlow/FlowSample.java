@@ -1,6 +1,8 @@
 package sFlow;
 
-public class FlowSample
+import java.nio.ByteBuffer;
+
+public class FlowSample extends SampleRecord
 {
 	private long sequenceNumber;
 	private DataSource sourceId;
@@ -11,18 +13,82 @@ public class FlowSample
 	private Interface output;
 	private FlowRecord flowRecords[];
 	
-	public FlowSample(long sequenceNumber, DataSource dataSource, long samplingRate, long samplePool, long drops, Interface input, Interface output, FlowRecord flowRecords[])
-	{
-		this.sequenceNumber = sequenceNumber;
-		this.sourceId = dataSource;
-		this.samplingRate = samplingRate;
-		this.samplePool = samplePool;
-		this.drops = drops;
-		this.input = input;
-		this.output = output;
-		this.flowRecords = flowRecords;		
-	}
+	private FlowSample() { }
 	
+	public static FlowSample parse(ByteBuffer buffer)
+	{
+		FlowSample sample = new FlowSample();
+		int numberOfRecords;
+		int numberOfBytes;
+		boolean expanded;
+		
+		if (buffer.remaining() >= 8)
+		{
+			sample.type = DataFormat.parse(buffer);
+			numberOfBytes = buffer.getInt();
+		}
+		else
+		{
+			return null;
+		}
+		
+		if (sample.type.getEnterPriseCode() == 0 && sample.type.getFormatNumber() == 0)
+		{
+			expanded = false;
+		}
+		else if (sample.type.getEnterPriseCode() == 0 && sample.type.getFormatNumber() == 3)
+		{
+			expanded = true;
+		}
+		else
+		{
+			return null;
+		}
+		
+		if (buffer.remaining() >= numberOfBytes)
+		{
+			if ((expanded && buffer.remaining() >= 28) || (!expanded && buffer.remaining() >= 40))
+			{
+				sample.sourceId = (expanded) ? DataSource.parseExpanded(buffer) : DataSource.parse(buffer);
+				sample.samplingRate = (long)buffer.getInt();
+				sample.samplePool = (long)buffer.getInt();
+				sample.drops = (long)buffer.getInt();
+				sample.input = (expanded) ? Interface.parseExpanded(buffer) : Interface.parse(buffer);
+				sample.output = (expanded) ? Interface.parseExpanded(buffer) : Interface.parse(buffer);
+				numberOfRecords = buffer.getInt();
+			}
+			else
+			{
+				return null;
+			}
+			
+			if (numberOfRecords >= 0)
+			{
+				sample.flowRecords = new FlowRecord[numberOfRecords];
+			}
+			else
+			{
+				return null;
+			}
+			
+			for (int i = 0; i < numberOfRecords; i++)
+			{
+				sample.flowRecords[i] = FlowRecord.parse(buffer);
+				
+				if (sample.flowRecords[i] == null)
+				{
+					return null;
+				}
+			}
+			
+			return sample;
+		}
+		else
+		{
+			return null;
+		}		
+	}
+
 	public long getSequenceNumber()
 	{
 		return sequenceNumber;
