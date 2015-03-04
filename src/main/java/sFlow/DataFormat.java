@@ -6,13 +6,7 @@ public class DataFormat
 {
 	private int enterpriseCode;
 	private int formatNumber;
-	
-	public DataFormat(int enterpriseCode, int formatNumber)
-	{
-		this.enterpriseCode = enterpriseCode;
-		this.formatNumber = formatNumber;
-	}
-	
+
 	private DataFormat() { }
 	
 	public static DataFormat parse(ByteBuffer buffer)
