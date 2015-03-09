@@ -1,7 +1,12 @@
 package edu.kau.cloudmac.controller;
 
+import edu.kau.cloudmac.CloudMACRecord;
 import edu.kau.ini.Parser;
+import edu.kau.sflow.FlowSample;
+import edu.kau.sflow.SampleDatagram;
+import edu.kau.sflow.SampledHeader;
 
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Map;
 
@@ -10,9 +15,11 @@ import org.opendaylight.controller.sal.flowprogrammer.IFlowProgrammerService;
 import org.opendaylight.controller.sal.packet.Ethernet;
 import org.opendaylight.controller.sal.packet.IDataPacketService;
 import org.opendaylight.controller.sal.packet.IListenDataPacket;
+import org.opendaylight.controller.sal.packet.IPv4;
 import org.opendaylight.controller.sal.packet.Packet;
 import org.opendaylight.controller.sal.packet.PacketResult;
 import org.opendaylight.controller.sal.packet.RawPacket;
+import org.opendaylight.controller.sal.packet.UDP;
 import org.opendaylight.controller.sal.routing.IRouting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -351,8 +358,36 @@ public class PacketHandler implements IListenDataPacket
 		// Remove this if later!
 		if (Arrays.equals(s, bah) || Arrays.equals(d, bah))
 		{
+			Ethernet ethPacket = (Ethernet)l2pkt;
+			IPv4 ipv4Packet = (IPv4)ethPacket.getPayload();			
+			UDP udpPacket = (UDP)ipv4Packet.getPayload();
+			ByteBuffer buffer = ByteBuffer.wrap(udpPacket.getRawPayload());
+
 			@SuppressWarnings("unused")
-			byte[] bytes = e.getRawPayload();
+			SampleDatagram datagram = SampleDatagram.parse(buffer);
+			
+			for (int i = 0; i < datagram.getSamples().length; i++)
+			{
+				if (datagram.getSamples()[i] instanceof FlowSample)
+				{
+					FlowSample sample = (FlowSample)datagram.getSamples()[i];
+					
+					for (int j = 0; j < sample.getFlowRecords().length; j++)
+					{
+						if (sample.getFlowRecords()[j] instanceof SampledHeader)
+						{
+							SampledHeader header = (SampledHeader)sample.getFlowRecords()[j];							
+							CloudMACRecord record;
+							
+							buffer = ByteBuffer.wrap(header.getHeader());
+							record = CloudMACRecord.parse(buffer);
+							
+							@SuppressWarnings("unused")
+							boolean staph = false;
+						}
+					}					
+				}			
+			}
 			
 			@SuppressWarnings("unused")
 			boolean staph = true;
