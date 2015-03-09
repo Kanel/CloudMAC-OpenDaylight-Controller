@@ -1,4 +1,4 @@
-package sFlow;
+package edu.kau.sflow;
 
 import java.nio.ByteBuffer;
 
