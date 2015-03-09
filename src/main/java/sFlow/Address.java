@@ -17,7 +17,7 @@ public class Address
 	{
 		Address address = new Address();
 		
-		if (buffer.remaining() >= 4)
+		if (buffer.remaining() < 4)
 		{
 			return null;
 		}

@@ -1,4 +1,4 @@
-package sFlow.FlowDataTypes;
+package sFlow;
 
 public enum HeaderProtocols
 {

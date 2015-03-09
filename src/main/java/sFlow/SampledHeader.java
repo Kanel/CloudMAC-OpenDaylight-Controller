@@ -1,12 +1,9 @@
-package sFlow.FlowDataTypes;
+package sFlow;
 
 import java.nio.ByteBuffer;
 
-import sFlow.DataFormat;
-
-public class SampledHeader
+public class SampledHeader extends GenericRecord
 {
-	private DataFormat type;
 	private HeaderProtocols protocol;
 	private long frameLength;
 	private long stripped;
@@ -30,7 +27,7 @@ public class SampledHeader
 			return null;
 		}
 		
-		if (sample.type.getEnterPriseCode() == 0 && sample.type.getFormatNumber() == 1)
+		if (sample.type.getEnterPriseCode() != 0 || sample.type.getFormatNumber() != 1)
 		{
 			return null;
 		}
@@ -39,6 +36,7 @@ public class SampledHeader
 		{
 			if (buffer.remaining() >= 12)
 			{
+				sample.protocol = HeaderProtocols.lookup(buffer.getInt());
 				sample.frameLength = (long)buffer.getInt();
 				sample.stripped = (long)buffer.getInt();
 				headerLength = buffer.getInt();
@@ -59,17 +57,17 @@ public class SampledHeader
 				return null;
 			}
 			
+			if (headerLength % 4 != 0)
+			{
+				buffer.position(buffer.position() + (4 - buffer.position() % 4));
+			}
+			
 			return sample;
 		}
 		else
 		{
 			return null;
 		}
-	}
-	
-	public DataFormat getType()
-	{
-		return type;
 	}
 	
 	public HeaderProtocols getProtocol()

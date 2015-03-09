@@ -6,7 +6,7 @@ public class CounterSample extends SampleRecord
 {
 	private long sequenceNumber;
 	private DataSource sourceId;
-	private CounterRecord counters[];
+	private GenericRecord counters[];
 	
 	private CounterSample() { }
 	
@@ -42,7 +42,7 @@ public class CounterSample extends SampleRecord
 		
 		if (buffer.remaining() >= numberOfBytes)
 		{
-			if ((expanded && buffer.remaining() >= 12) || (!expanded && buffer.remaining() >= 16))
+			if ((!expanded && buffer.remaining() >= 12) || (expanded && buffer.remaining() >= 16))
 			{
 				sample.sequenceNumber = (long)buffer.getInt();
 				sample.sourceId = (expanded) ? DataSource.parseExpanded(buffer) : DataSource.parse(buffer);
@@ -55,7 +55,7 @@ public class CounterSample extends SampleRecord
 			
 			if (numberOfCounters >= 0)
 			{
-				sample.counters = new CounterRecord[numberOfCounters];
+				sample.counters = new GenericRecord[numberOfCounters];
 			}
 			else
 			{
@@ -64,7 +64,7 @@ public class CounterSample extends SampleRecord
 			
 			for (int i = 0; i < numberOfCounters; i++)
 			{
-				sample.counters[i] = CounterRecord.parse(buffer);
+				sample.counters[i] = UnknownRecord.parse(buffer);
 				
 				if (sample.counters[i] == null)
 				{
@@ -90,7 +90,7 @@ public class CounterSample extends SampleRecord
 		return sourceId;
 	}	
 	
-	public CounterRecord[] getCounters()
+	public GenericRecord[] getCounters()
 	{
 		return counters;
 	}

@@ -11,7 +11,7 @@ public class FlowSample extends SampleRecord
 	private long drops;
 	private Interface input;
 	private Interface output;
-	private FlowRecord flowRecords[];
+	private GenericRecord flowRecords[];
 	
 	private FlowSample() { }
 	
@@ -32,7 +32,7 @@ public class FlowSample extends SampleRecord
 			return null;
 		}
 		
-		if (sample.type.getEnterPriseCode() == 0 && sample.type.getFormatNumber() == 0)
+		if (sample.type.getEnterPriseCode() == 0 && sample.type.getFormatNumber() == 1)
 		{
 			expanded = false;
 		}
@@ -47,8 +47,9 @@ public class FlowSample extends SampleRecord
 		
 		if (buffer.remaining() >= numberOfBytes)
 		{
-			if ((expanded && buffer.remaining() >= 28) || (!expanded && buffer.remaining() >= 40))
+			if ((!expanded && buffer.remaining() >= 32) || (expanded && buffer.remaining() >= 44))
 			{
+				sample.sequenceNumber = (long)buffer.getInt();
 				sample.sourceId = (expanded) ? DataSource.parseExpanded(buffer) : DataSource.parse(buffer);
 				sample.samplingRate = (long)buffer.getInt();
 				sample.samplePool = (long)buffer.getInt();
@@ -64,7 +65,7 @@ public class FlowSample extends SampleRecord
 			
 			if (numberOfRecords >= 0)
 			{
-				sample.flowRecords = new FlowRecord[numberOfRecords];
+				sample.flowRecords = new GenericRecord[numberOfRecords];
 			}
 			else
 			{
@@ -73,7 +74,18 @@ public class FlowSample extends SampleRecord
 			
 			for (int i = 0; i < numberOfRecords; i++)
 			{
-				sample.flowRecords[i] = FlowRecord.parse(buffer);
+				DataFormat format = DataFormat.parse(buffer); // Peek!
+				
+				buffer.position(buffer.position() - 4); // Rewind!
+				
+				if (format.getEnterPriseCode() == 0 && format.getFormatNumber() == 1)
+				{
+					sample.flowRecords[i] = SampledHeader.parse(buffer);
+				}
+				else
+				{
+					sample.flowRecords[i] = UnknownRecord.parse(buffer);
+				}
 				
 				if (sample.flowRecords[i] == null)
 				{
@@ -124,7 +136,7 @@ public class FlowSample extends SampleRecord
 		return output;
 	}
 	
-	public FlowRecord[] getFlowRecords()
+	public GenericRecord[] getFlowRecords()
 	{
 		return flowRecords;
 	}
