@@ -8,6 +8,7 @@ public class CloudMACHeader
 	private byte[] destination;
 	private byte[] vapId;
 	private int type; // unsigned short
+
 	private E802_1QHeader e802_1qHeader;
 	
 	private CloudMACHeader() { }
