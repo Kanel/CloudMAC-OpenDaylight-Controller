@@ -8,6 +8,7 @@ public class CloudMACHeader
 	private byte[] destination;
 	private byte[] vapId;
 	private int type; // unsigned short
+	private E802_1QHeader e802_1qHeader;
 	
 	private CloudMACHeader() { }
 	
@@ -31,6 +32,13 @@ public class CloudMACHeader
 			
 			header.type = (int)buffer.getShort();
 			
+			if (header.type == E802_1QHeader.TAG_PROTOCOL_IDENTIFIER)
+			{
+				buffer.position(buffer.position() - 2);
+				
+				header.e802_1qHeader = E802_1QHeader.parse(buffer);
+			}
+			
 			return header;
 		}
 		else
@@ -49,9 +57,9 @@ public class CloudMACHeader
 		return destination;
 	}
 	
-	public int getType()
+	public byte[] getVapId()
 	{
-		return type;
+		return vapId;
 	}
 	
 	public byte getSignalStrength()
@@ -64,8 +72,13 @@ public class CloudMACHeader
 		return destination[1];
 	}
 	
-	public byte[] getVapId()
+	public int getType()
 	{
-		return vapId;
+		return type;
+	}	
+
+	public E802_1QHeader getE802_1qHeader()
+	{
+		return e802_1qHeader;
 	}
 }
