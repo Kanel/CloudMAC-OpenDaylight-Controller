@@ -1,6 +1,7 @@
 package edu.kau.sflow;
 
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 
 public class FlowSample extends SampleRecord
 {
@@ -11,7 +12,7 @@ public class FlowSample extends SampleRecord
 	private long drops;
 	private Interface input;
 	private Interface output;
-	private GenericRecord flowRecords[];
+	private FlowDataRecord flowRecords[];
 	
 	private FlowSample() { }
 	
@@ -21,6 +22,8 @@ public class FlowSample extends SampleRecord
 		int numberOfRecords;
 		int numberOfBytes;
 		boolean expanded;
+		
+		buffer.order(ByteOrder.BIG_ENDIAN);
 		
 		if (buffer.remaining() >= 8)
 		{
@@ -65,7 +68,7 @@ public class FlowSample extends SampleRecord
 			
 			if (numberOfRecords >= 0)
 			{
-				sample.flowRecords = new GenericRecord[numberOfRecords];
+				sample.flowRecords = new FlowDataRecord[numberOfRecords];
 			}
 			else
 			{
@@ -136,7 +139,7 @@ public class FlowSample extends SampleRecord
 		return output;
 	}
 	
-	public GenericRecord[] getFlowRecords()
+	public FlowDataRecord[] getFlowRecords()
 	{
 		return flowRecords;
 	}

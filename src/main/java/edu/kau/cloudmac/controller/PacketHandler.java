@@ -336,7 +336,7 @@ public class PacketHandler implements IListenDataPacket
 			 || Arrays.equals(destination, mobileClient1) 
 			 || Arrays.equals(destination, mobileClient2);
 	}
-
+	
 	@Override
 	public PacketResult receiveDataPacket(RawPacket inPkt)
 	{
@@ -349,53 +349,28 @@ public class PacketHandler implements IListenDataPacket
 			return PacketResult.IGNORED;
 
 		Packet l2pkt = dataPacketService.decodeDataPacket(inPkt);
-		
-		byte[] bah = new byte[] { 0x01, 0x02, 0x03, 0x04, 0x05, 0x06 };
-		Ethernet e = (Ethernet)l2pkt;
-		byte[] s = e.getSourceMACAddress();
-		byte[] d = e.getDestinationMACAddress();
-		
-		// Remove this if later!
-		if (Arrays.equals(s, bah) || Arrays.equals(d, bah))
-		{
-			Ethernet ethPacket = (Ethernet)l2pkt;
-			IPv4 ipv4Packet = (IPv4)ethPacket.getPayload();			
-			UDP udpPacket = (UDP)ipv4Packet.getPayload();
-			ByteBuffer buffer = ByteBuffer.wrap(udpPacket.getRawPayload());
 
-			@SuppressWarnings("unused")
-			SampleDatagram datagram = SampleDatagram.parse(buffer);
+		if (SampledFlowPacket.isSampledFlowPacket(l2pkt))
+		{
+			CloudMACRecord records[] = SampledFlowPacket.getCloudMACRecords(l2pkt);
 			
-			for (int i = 0; i < datagram.getSamples().length; i++)
+			for (CloudMACRecord record : records)
 			{
-				if (datagram.getSamples()[i] instanceof FlowSample)
+				byte[] sourceMac = record.getE80211Header().getSourceAddress();
+				byte[] bssidMac = record.getE80211Header().getBssidAddress();
+				short signal = record.getRadiotap().getAntennaSignal();
+				
+				if (!Arrays.equals(sourceMac, bssidMac))
 				{
-					FlowSample sample = (FlowSample)datagram.getSamples()[i];
+					MobileTerminalTunnel tunnel = tunnels.get(sourceMac);
 					
-					for (int j = 0; j < sample.getFlowRecords().length; j++)
-					{
-						if (sample.getFlowRecords()[j] instanceof SampledHeader)
-						{
-							SampledHeader header = (SampledHeader)sample.getFlowRecords()[j];							
-							CloudMACRecord record;
-							
-							buffer = ByteBuffer.wrap(header.getHeader());
-							record = CloudMACRecord.parse(buffer);
-							
-							@SuppressWarnings("unused")
-							boolean staph = false;
-						}
-					}					
-				}			
+					
+				}
 			}
 			
-			@SuppressWarnings("unused")
-			boolean staph = true;
-			
-			staph = false;
+			return PacketResult.CONSUME;
 		}
-
-		if (CloudMACPacket.isCloudMAC(l2pkt))
+		else if (CloudMACPacket.isCloudMAC(inPkt.getPacketData()))
 		{
 			NodeConnector ingressConnector = inPkt.getIncomingNodeConnector();
 			Ethernet ethPkt = (Ethernet)l2pkt;
@@ -428,15 +403,15 @@ public class PacketHandler implements IListenDataPacket
 			}
 			else
 			{
-				FrameTypes frameType = FrameTypes.lookup(CloudMACPacket.getFrameType(inPkt));
+				FrameTypes frameType = FrameTypes.lookup(CloudMACPacket.getFrameType(inPkt.getPacketData()));
 
-				log.trace("CloudMAC packet recieved, frame type: {}, {}", frameType, CloudMACPacket.getFrameType(inPkt));
+				log.trace("CloudMAC packet recieved, frame type: {}, {}", frameType, CloudMACPacket.getFrameType(inPkt.getPacketData()));
 
 				// Handle Routing, and WTP, and VAP discovery.
 				switch (frameType)
 				{
 				case Management_Beacon:
-					if (accessPoints.contains(CloudMACPacket.getAddress3(inPkt)))
+					if (accessPoints.contains(CloudMACPacket.getAddress3(inPkt.getPacketData())))
 					{
 						log.trace("Reseting access point expiration {}/{}.", ingressConnector, sourceMac);
 
@@ -449,7 +424,7 @@ public class PacketHandler implements IListenDataPacket
 
 						// New access point discovered.
 
-						accessPoints.add(ingressConnector, CloudMACPacket.getAddress3(inPkt), System.currentTimeMillis() + config.getAccessPointExpiration());
+						accessPoints.add(ingressConnector, CloudMACPacket.getAddress3(inPkt.getPacketData()), System.currentTimeMillis() + config.getAccessPointExpiration());
 					}
 
 					// Route beacons to WTPs to allow their presence to be easily detected, only if the access point isn't in use.

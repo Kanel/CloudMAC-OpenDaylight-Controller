@@ -1,12 +1,13 @@
 package edu.kau.sflow;
 
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 
 public class CounterSample extends SampleRecord
 {
 	private long sequenceNumber;
 	private DataSource sourceId;
-	private GenericRecord counters[];
+	private FlowDataRecord counters[];
 	
 	private CounterSample() { }
 	
@@ -16,6 +17,8 @@ public class CounterSample extends SampleRecord
 		int numberOfCounters;		
 		int numberOfBytes;
 		boolean expanded;
+		
+		buffer.order(ByteOrder.BIG_ENDIAN);
 		
 		if (buffer.remaining() >= 8)
 		{
@@ -55,7 +58,7 @@ public class CounterSample extends SampleRecord
 			
 			if (numberOfCounters >= 0)
 			{
-				sample.counters = new GenericRecord[numberOfCounters];
+				sample.counters = new FlowDataRecord[numberOfCounters];
 			}
 			else
 			{
@@ -90,7 +93,7 @@ public class CounterSample extends SampleRecord
 		return sourceId;
 	}	
 	
-	public GenericRecord[] getCounters()
+	public FlowDataRecord[] getCounters()
 	{
 		return counters;
 	}

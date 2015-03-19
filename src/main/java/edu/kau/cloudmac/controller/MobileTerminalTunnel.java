@@ -1,19 +1,21 @@
 package edu.kau.cloudmac.controller;
 
 import java.util.Arrays;
-
+import java.util.LinkedList;
+import java.util.List;
 
 public class MobileTerminalTunnel
 {
 	protected Endpoint source;
 	protected AccessPoint ap;
-	protected long expiration;
+	protected long expiration;	
 
 	public MobileTerminalTunnel(Endpoint source, AccessPoint ap, long expiration)
 	{
 		this.source = source;
 		this.ap = ap;
 		this.expiration = expiration;
+		this.signals = new LinkedList<Triple<Endpoint, Short, Long>>();
 	}
 
 	public Endpoint getSource()
@@ -44,6 +46,16 @@ public class MobileTerminalTunnel
 	public boolean expired()
 	{
 		return expiration < System.currentTimeMillis();
+	}
+	
+	public void reportSignal(WirelessTerminationPoint wtp, short signal, long time)
+	{
+		
+	}
+	
+	public Triple<Endpoint, Short, Long> getBestSignal()
+	{
+		
 	}
 
 	@Override

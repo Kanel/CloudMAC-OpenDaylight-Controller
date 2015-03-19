@@ -1,6 +1,7 @@
 package edu.kau.sflow;
 
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 
 public class Interface
 {
@@ -11,6 +12,8 @@ public class Interface
 	
 	public static Interface parse(ByteBuffer buffer)
 	{
+		buffer.order(ByteOrder.BIG_ENDIAN);
+		
 		if (buffer.remaining() >= 4)
 		{
 			Interface interface_ = new Interface();

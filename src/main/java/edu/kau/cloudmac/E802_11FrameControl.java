@@ -1,6 +1,7 @@
 package edu.kau.cloudmac;
 
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 
 public class E802_11FrameControl
 {
@@ -20,6 +21,8 @@ public class E802_11FrameControl
 	
 	public static E802_11FrameControl parse(ByteBuffer buffer)
 	{
+		buffer.order(ByteOrder.BIG_ENDIAN);
+		
 		if (buffer.remaining() >= 2)
 		{
 			E802_11FrameControl control = new E802_11FrameControl();

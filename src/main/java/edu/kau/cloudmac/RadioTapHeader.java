@@ -32,12 +32,12 @@ public class RadioTapHeader
 	
 	public static RadioTapHeader parse(ByteBuffer buffer)
 	{
+		buffer.order(ByteOrder.LITTLE_ENDIAN);
+		
 		if (buffer.remaining() >= 8)
 		{
 			RadioTapHeader header = new RadioTapHeader();
-			int start = buffer.position();
-			
-			buffer.order(ByteOrder.LITTLE_ENDIAN);
+			int start = buffer.position();			
 			
 			header.version = (short)buffer.get();
 			header.pad = (short)buffer.get();

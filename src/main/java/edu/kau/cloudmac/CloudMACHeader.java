@@ -1,6 +1,7 @@
 package edu.kau.cloudmac;
 
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 
 public class CloudMACHeader
 {
@@ -15,6 +16,8 @@ public class CloudMACHeader
 	
 	public static CloudMACHeader parse(ByteBuffer buffer)
 	{
+		buffer.order(ByteOrder.BIG_ENDIAN);
+		
 		if (buffer.remaining() >= 16)
 		{
 			CloudMACHeader header = new CloudMACHeader();

@@ -1,6 +1,7 @@
 package edu.kau.cloudmac;
 
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 
 public class CloudMACRecord
 {

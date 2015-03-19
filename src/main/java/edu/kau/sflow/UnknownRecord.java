@@ -1,15 +1,18 @@
 package edu.kau.sflow;
 
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 
-public class UnknownRecord extends GenericRecord
+public class UnknownRecord extends FlowDataRecord
 {
 	byte[] data;
 	
 	private UnknownRecord() { }
 	
-	public static GenericRecord parse(ByteBuffer buffer)
+	public static UnknownRecord parse(ByteBuffer buffer)
 	{
+		buffer.order(ByteOrder.BIG_ENDIAN);
+		
 		if (buffer.remaining() >= 8)
 		{
 			UnknownRecord record = new UnknownRecord();

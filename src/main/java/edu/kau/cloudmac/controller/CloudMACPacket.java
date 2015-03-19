@@ -1,28 +1,23 @@
 package edu.kau.cloudmac.controller;
 
-import org.opendaylight.controller.sal.packet.Ethernet;
-import org.opendaylight.controller.sal.packet.Packet;
-import org.opendaylight.controller.sal.packet.RawPacket;
-
 public class CloudMACPacket
 {
-	public static short getFrameType(RawPacket packet)
+	public static short getFrameType(byte[] data)
 	{
 		final short MAC_LENGTH = 6;
 		final short ETHER_TYPE_LENGTH = 2;
 		final short HEADER_802_1Q_LENGTH = 4;
 		final int HEADER_802_1Q_ID = 0x8100;
-		byte[] data = packet.getPacketData();
 		short type = 0;
 		short offset = (short)(MAC_LENGTH + MAC_LENGTH + ETHER_TYPE_LENGTH);
 		int etherType = (data[MAC_LENGTH + MAC_LENGTH] << 8) | data[MAC_LENGTH + MAC_LENGTH + 1];
 
 		// Check if there is a 802.1Q header.
-		if (etherType == HEADER_802_1Q_ID) // <- Why do I even check?
+		if (etherType == HEADER_802_1Q_ID)
 		{
 			offset += HEADER_802_1Q_LENGTH;
 		}
-		offset += data[offset + 2]; // Add radiotap header length.
+		offset += (int)((data[offset + 2] << 8) | data[offset + 1]); // Add radiotap header length.
 
 		// We don't need the first 2 bits (protocol version).
 		type += data[offset] & 0b11111111;
@@ -30,23 +25,32 @@ public class CloudMACPacket
 		return type;
 	}
 
-	public static boolean isCloudMAC(Packet packet)
+	public static boolean isCloudMAC(byte[] data)
 	{
-        short CLOUD_MAC_TYPE = 0x1337; // CloudMAC ethernet type.
-
-        if (packet instanceof Ethernet)
-        {
-                Ethernet ethPkt = (Ethernet)packet;
-
-                if (ethPkt.getEtherType() == CLOUD_MAC_TYPE)
-                {
-                        return true;
-                }
-        }
-		return false;
+		short CLOUDMAC_QOS_BACKGROUND = 0x1336; // CloudMAC ethernet type.
+		short CLOUDMAC_QOS_BEST_EFFORT = 0x1337; // CloudMAC ethernet type.
+		short CLOUDMAC_QOS_VIDEO = 0x1338; // CloudMAC ethernet type.
+		short CLOUDMAC_QOS_VOICE = 0x1339; // CloudMAC ethernet type.
+		final short MAC_LENGTH = 6;
+		final short HEADER_802_1Q_LENGTH = 4;
+		final int HEADER_802_1Q_ID = 0x8100;
+		int offset = MAC_LENGTH + MAC_LENGTH;
+		int etherType = (data[offset] << 8) | data[offset + 1];
+		
+		// Check if there is a 802.1Q header.
+		if (etherType == HEADER_802_1Q_ID) // <- Why do I even check?
+		{
+			offset += HEADER_802_1Q_LENGTH;
+			etherType = (data[offset] << 8) | data[offset + 1];
+		}
+		
+		return etherType == CLOUDMAC_QOS_BACKGROUND 
+			|| etherType == CLOUDMAC_QOS_BEST_EFFORT
+			|| etherType == CLOUDMAC_QOS_VIDEO
+			|| etherType == CLOUDMAC_QOS_VOICE;
 	}
 	
-	public static byte[] getAddress3(RawPacket packet)
+	public static byte[] getAddress3(byte[] data)
 	{
 		byte[] mac = new byte[6];
 		
@@ -54,12 +58,11 @@ public class CloudMACPacket
 		final short ETHER_TYPE_LENGTH = 2;
 		final short HEADER_802_1Q_LENGTH = 4;
 		final int HEADER_802_1Q_ID = 0x8100;
-		byte[] data = packet.getPacketData();
 		short offset = (short)(MAC_LENGTH + MAC_LENGTH + ETHER_TYPE_LENGTH);
 		int etherType = (data[MAC_LENGTH + MAC_LENGTH] << 8) | data[MAC_LENGTH + MAC_LENGTH + 1]; // lots of assumptions here
 
 		// Check if there is a 802.1Q header.
-		if (etherType == HEADER_802_1Q_ID) // <- Why do I even check?
+		if (etherType == HEADER_802_1Q_ID)
 		{
 			offset += HEADER_802_1Q_LENGTH;
 		}

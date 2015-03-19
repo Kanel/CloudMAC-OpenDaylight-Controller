@@ -16,13 +16,13 @@ public class E802_1QHeader
 	
 	public static E802_1QHeader parse(ByteBuffer buffer)
 	{
+		buffer.order(ByteOrder.BIG_ENDIAN);
+		
 		if (buffer.remaining() >= 2)
 		{
 			E802_1QHeader header = new E802_1QHeader();
 			byte value_a;
 			byte value_b;
-			
-			buffer.order(ByteOrder.BIG_ENDIAN);
 			
 			header.tagProtocolIdentifier = (int)buffer.getShort();
 			value_a = buffer.get();

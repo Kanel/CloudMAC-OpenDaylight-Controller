@@ -1,8 +1,9 @@
 package edu.kau.sflow;
 
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 
-public class SampledHeader extends GenericRecord
+public class SampledHeader extends FlowDataRecord
 {
 	private HeaderProtocols protocol;
 	private long frameLength;
@@ -16,6 +17,8 @@ public class SampledHeader extends GenericRecord
 		SampledHeader sample = new SampledHeader();
 		int numberOfBytes;
 		int headerLength;
+		
+		buffer.order(ByteOrder.BIG_ENDIAN);
 		
 		if (buffer.remaining() >= 8)
 		{

@@ -1,6 +1,7 @@
 package edu.kau.sflow;
 
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 
 public class DataFormat
 {
@@ -11,6 +12,8 @@ public class DataFormat
 	
 	public static DataFormat parse(ByteBuffer buffer)
 	{
+		buffer.order(ByteOrder.BIG_ENDIAN);
+		
 		if (buffer.remaining() >= 4)
 		{
 			DataFormat format = new DataFormat();

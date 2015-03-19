@@ -23,6 +23,8 @@ public class E802_11Header
 	
 	public static E802_11Header parse(ByteBuffer buffer)
 	{
+		buffer.order(ByteOrder.BIG_ENDIAN);
+		
 		if (buffer.remaining() >= 30)
 		{
 			E802_11Header header = new E802_11Header();
@@ -50,6 +52,77 @@ public class E802_11Header
 		else
 		{
 			return null;
+		}
+	}
+	
+	public byte[] getSourceAddress()
+	{
+		if (control.getToDs())
+		{
+			if (control.getFromDs())
+			{
+				return address4;
+			}
+			else
+			{
+				return address2;
+			}
+		}
+		else
+		{
+			if (control.getFromDs())
+			{
+				return address3;
+			}
+			else
+			{
+				return address2;
+			}
+		}
+	}
+	
+	public byte[] getDestinationAddress()
+	{
+		if (control.getToDs())
+		{
+			if (control.getFromDs())
+			{
+				return address3;
+			}
+			else
+			{
+				return address2;
+			}
+		}
+		else
+		{
+			return address1;
+		}
+	}
+	
+	public byte[] getBssidAddress()
+	{
+		if (control.getToDs())
+		{
+			if (control.getFromDs())
+			{
+				return null;
+			}
+			else
+			{
+				return address1;
+			}
+		}
+		else
+		{
+			if (control.getFromDs())
+			{
+				return address2;
+			}
+			else
+			{
+				return address3;
+			}
 		}
 	}
 	

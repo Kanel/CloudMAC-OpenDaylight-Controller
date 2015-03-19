@@ -1,6 +1,7 @@
 package edu.kau.sflow;
 
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 
 public class SampleDatagram
 {
@@ -17,6 +18,8 @@ public class SampleDatagram
 	{
 		SampleDatagram sample = new SampleDatagram();
 		int numberOfSamples;
+		
+		buffer.order(ByteOrder.BIG_ENDIAN);
 		
 		if (buffer.remaining() >= 8)
 		{
