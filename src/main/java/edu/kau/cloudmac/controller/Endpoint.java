@@ -25,6 +25,11 @@ public class Endpoint
 	{
 		return connector;
 	}
+	
+	public void setConnector(NodeConnector connector)
+	{
+		this.connector = connector;
+	}
 
 	public byte[] getMacAdress()
 	{

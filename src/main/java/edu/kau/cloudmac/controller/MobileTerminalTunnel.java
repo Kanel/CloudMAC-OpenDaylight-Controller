@@ -1,21 +1,22 @@
 package edu.kau.cloudmac.controller;
 
 import java.util.Arrays;
-import java.util.LinkedList;
-import java.util.List;
+
+import org.opendaylight.controller.sal.core.NodeConnector;
 
 public class MobileTerminalTunnel
 {
 	protected Endpoint source;
 	protected AccessPoint ap;
-	protected long expiration;	
+	protected long expiration;
+	protected SignalAnalyser analyser;
 
 	public MobileTerminalTunnel(Endpoint source, AccessPoint ap, long expiration)
 	{
 		this.source = source;
 		this.ap = ap;
 		this.expiration = expiration;
-		this.signals = new LinkedList<Triple<Endpoint, Short, Long>>();
+		this.analyser = new SignalAnalyser();
 	}
 
 	public Endpoint getSource()
@@ -48,14 +49,14 @@ public class MobileTerminalTunnel
 		return expiration < System.currentTimeMillis();
 	}
 	
-	public void reportSignal(WirelessTerminationPoint wtp, short signal, long time)
+	public void reportSignal(NodeConnector connector, short signal, long timestamp)
 	{
-		
+		analyser.report(connector, signal, timestamp);
 	}
 	
-	public Triple<Endpoint, Short, Long> getBestSignal()
+	public NodeConnector getBestSignalSource(long timestamp)
 	{
-		
+		return analyser.getBest(source.getConnector(), timestamp);		
 	}
 
 	@Override

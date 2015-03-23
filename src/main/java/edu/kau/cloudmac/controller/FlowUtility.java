@@ -160,7 +160,7 @@ public class FlowUtility
 		Flow forward;
 		Flow backward;
 		Flow beacon;
-		byte[] mask = new byte[]{ (byte)0x00, (byte)0x00, (byte)0xFF, (byte)0xFF, (byte)0xFF, (byte)0xFF }; // The first 2 bytes can dynamically change.
+		//byte[] mask = new byte[]{ (byte)0x00, (byte)0x00, (byte)0xFF, (byte)0xFF, (byte)0xFF, (byte)0xFF }; // The first 2 bytes can dynamically change.
 		byte[] broadcast = new byte[] { (byte)0xFF, (byte)0xFF, (byte)0xFF, (byte)0xFF, (byte)0xFF, (byte)0xFF };
 		byte[] apMac2 = apMac.clone();
 		
@@ -193,8 +193,7 @@ public class FlowUtility
 		// This should cause the flows to be recreated before they timeout.
 		forward = createFlow(connectors.get(0), ethernetType, mtMac, null, apMac, null, priority, timeout);		
 		forward.addAction(new Enqueue(connectors.get(1), queueIndex));
-		forward.addAction(new Controller());
-		
+		forward.addAction(new Controller());		
 
 		flowProgrammer.addFlow(connectors.get(0).getNode(), forward);
 
@@ -252,7 +251,111 @@ public class FlowUtility
 		flowProgrammer.addFlow(connectors.get(connectors.size() - 1).getNode(), beacon);
 
 		return FlowUtilityResult.OK;
+	}	
+	
+	public FlowUtilityResult removeTunnel(NodeConnector a, NodeConnector b, byte[] mtMac, byte[] apMac, short[] ethernetTypes, short[] queueIndices, short priority, short timeout, short graceTime)
+	{
+		if (ethernetTypes.length != queueIndices.length)
+			return FlowUtilityResult.ARGUMENT_MISSMATCH;
+		
+		for (int i = 0; i < ethernetTypes.length; i++)
+		{
+			removeTunnel(a, b, mtMac, apMac, ethernetTypes[i], queueIndices[i], priority, timeout, graceTime);
+		}
+		return FlowUtilityResult.OK;
 	}
+
+	// Add all necessary flows between a mobile terminal and a access point. 
+	private FlowUtilityResult removeTunnel(NodeConnector a, NodeConnector b, byte[] mtMac, byte[] apMac, short ethernetType, short queueIndex, short priority, short timeout, short graceTime)
+	{
+		if (routing == null)
+			return FlowUtilityResult.NO_I_ROUTING;
+		if (flowProgrammer == null)
+			return FlowUtilityResult.NO_I_FLOW_PROGRAMMER;
+
+		ArrayList<NodeConnector> connectors = getRoute(a, b);
+		Flow forward;
+		Flow backward;
+		Flow beacon;
+		//byte[] mask = new byte[]{ (byte)0x00, (byte)0x00, (byte)0xFF, (byte)0xFF, (byte)0xFF, (byte)0xFF }; // The first 2 bytes can dynamically change.
+		byte[] broadcast = new byte[] { (byte)0xFF, (byte)0xFF, (byte)0xFF, (byte)0xFF, (byte)0xFF, (byte)0xFF };
+		byte[] apMac2 = apMac.clone();
+		
+		// Todo: hope that opendaylight gets fixed.
+		apMac[0] = 0x00;
+		apMac[1] = 0x6c;
+		apMac2[0] = 0x0a;
+		apMac2[1] = 0x0b;
+
+		if (connectors == null)
+		{
+			log.warn("No path connecting {} and {}", a.getNode(), b.getNode());
+
+			return FlowUtilityResult.NO_PATH;
+		}
+
+		// Initial node keeps track if the connection is active.
+		// Forward flow.
+		forward = createFlow(connectors.get(0), ethernetType, mtMac, null, apMac2, null, (short)(priority + 1), (short)(timeout - graceTime));
+
+		flowProgrammer.removeFlow(connectors.get(0).getNode(), forward);
+
+		// Forward flow.
+		forward = createFlow(connectors.get(0), ethernetType, mtMac, null, broadcast, null, priority, timeout);
+
+		flowProgrammer.removeFlow(connectors.get(0).getNode(), forward);
+
+		// This should cause the flows to be recreated before they timeout.
+		forward = createFlow(connectors.get(0), ethernetType, mtMac, null, apMac, null, priority, timeout);		
+
+		flowProgrammer.removeFlow(connectors.get(0).getNode(), forward);
+
+		// Backward flow.
+		backward = createFlow(connectors.get(1), ethernetType, apMac, null, mtMac, null, priority, timeout);
+
+		flowProgrammer.removeFlow(connectors.get(0).getNode(), backward);
+
+		// Backward flow.
+		backward = createFlow(connectors.get(1), ethernetType, apMac, null, broadcast, null, priority, timeout);
+
+		flowProgrammer.removeFlow(connectors.get(0).getNode(), backward);
+
+		// The rest of the flows.
+		for (int i = 2; i < connectors.size(); i += 2)
+		{
+			// Forward flow.
+			forward = createFlow(connectors.get(i), ethernetType, mtMac, null, apMac2, null, priority, timeout);
+
+			flowProgrammer.removeFlow(connectors.get(i).getNode(), forward);
+
+			// Forward flow.
+			forward = createFlow(connectors.get(i), ethernetType, mtMac, null, broadcast, null, priority, timeout);
+
+			flowProgrammer.removeFlow(connectors.get(i).getNode(), forward);
+
+			// Backward flow.
+			backward = createFlow(connectors.get(i + 1), ethernetType, apMac, null, mtMac, null, priority, timeout);
+
+			flowProgrammer.removeFlow(connectors.get(i).getNode(), backward);
+
+			// Backward flow.
+			backward = createFlow(connectors.get(i + 1), ethernetType, apMac, null, broadcast, null, priority, timeout);
+
+			flowProgrammer.removeFlow(connectors.get(i).getNode(), backward);
+		}
+
+		// Beacon frames have to reach the controller periodically.
+		beacon = createFlow(connectors.get(connectors.size() - 1), ethernetType, apMac, null, broadcast, null, (short)(priority + 1), (short)(timeout - graceTime));
+
+		flowProgrammer.removeFlow(connectors.get(connectors.size() - 1).getNode(), beacon);
+
+		// Beacon frames have to reach the controller periodically.
+		beacon = createFlow(connectors.get(connectors.size() - 1), ethernetType, apMac, null, broadcast, null, (short)(priority + 1), timeout);
+
+		flowProgrammer.removeFlow(connectors.get(connectors.size() - 1).getNode(), beacon);
+
+		return FlowUtilityResult.OK;
+	}	
 
 	// Add all necessary flows between a mobile terminal and a access point.
 	public FlowUtilityResult createBeaconTunnel(NodeConnector a, NodeConnector b, byte[] accessPointMac, short ethernetType, short priority, short queueIndex, short timeout)
@@ -317,6 +420,15 @@ public class FlowUtility
 	public void ActivateAckingAsync(String hostname, int port, byte[] mac, int timeout)
 	{
 			AckingActivatorCallable activator = new AckingActivatorCallable(hostname, port, mac, timeout);
+			FutureTask<String> futureTask = new FutureTask<String>(activator);
+			ExecutorService executor = Executors.newSingleThreadExecutor();
+
+			executor.execute(futureTask);
+	}
+	
+	public void DeactivateAckingAsync(String hostname, int port, byte[] mac)
+	{
+			AckingDeactivatorCallable activator = new AckingDeactivatorCallable(hostname, port, mac);
 			FutureTask<String> futureTask = new FutureTask<String>(activator);
 			ExecutorService executor = Executors.newSingleThreadExecutor();
 

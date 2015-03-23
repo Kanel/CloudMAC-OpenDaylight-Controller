@@ -2,11 +2,7 @@ package edu.kau.cloudmac.controller;
 
 import edu.kau.cloudmac.CloudMACRecord;
 import edu.kau.ini.Parser;
-import edu.kau.sflow.FlowSample;
-import edu.kau.sflow.SampleDatagram;
-import edu.kau.sflow.SampledHeader;
 
-import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Map;
 
@@ -15,11 +11,9 @@ import org.opendaylight.controller.sal.flowprogrammer.IFlowProgrammerService;
 import org.opendaylight.controller.sal.packet.Ethernet;
 import org.opendaylight.controller.sal.packet.IDataPacketService;
 import org.opendaylight.controller.sal.packet.IListenDataPacket;
-import org.opendaylight.controller.sal.packet.IPv4;
 import org.opendaylight.controller.sal.packet.Packet;
 import org.opendaylight.controller.sal.packet.PacketResult;
 import org.opendaylight.controller.sal.packet.RawPacket;
-import org.opendaylight.controller.sal.packet.UDP;
 import org.opendaylight.controller.sal.routing.IRouting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -325,6 +319,39 @@ public class PacketHandler implements IListenDataPacket
 			flowUtil.unsetIFlowProgrammerService();
         }
     }
+	
+	private void handover(MobileTerminalTunnel tunnel, NodeConnector ingressConnector, byte[] sourceMac, byte[] destinationMac)
+	{
+		Endpoint endpoint = tunnel.getSource();
+		NodeConnector previousSource = endpoint.getConnector();
+		AccessPoint accesspoint = tunnel.getAccessPoint();
+		WirelessTerminationPoint wtp = wtps.get(ingressConnector);
+		long expiration = System.currentTimeMillis();
+		
+		// Update source.
+		endpoint.setConnector(ingressConnector);
+		
+		// Reroute traffic.
+		
+		// Reset expirations.
+		accesspoint.setAllocationExpiration(expiration + config.getTunnelExpiration());
+		tunnel.setExpiration(expiration + config.getTunnelExpiration());
+		
+		// Remove the previous tunnel.
+		flowUtil.removeTunnel(previousSource, accesspoint.getConnector(), sourceMac, accesspoint.getMacAdress(), config.getEthernetTypes(), config.getQueueIndices(), config.getTunnelPriority(), config.getFlowDuration(), config.getGraceDuration());
+		
+		// Create the new tunnel.
+		flowUtil.createTunnel(ingressConnector, accesspoint.getConnector(), sourceMac, accesspoint.getMacAdress(), config.getEthernetTypes(), config.getQueueIndices(), config.getTunnelPriority(), config.getFlowDuration(), config.getGraceDuration());
+		
+		// Block traffic from the old tunnel for a while.
+		flowUtil.block(previousSource, sourceMac, destinationMac, config.getEthernetTypes(), config.getBlockPriority(), config.getBlockFlowDuration());						
+		
+		// Stop the previous WTP from acking.
+		flowUtil.DeactivateAckingAsync(wtp.getIP(), config.getTerminationPointConfigPort(), destinationMac);
+		
+		// Start acking at the new WTP.
+		flowUtil.ActivateAckingAsync(wtp.getIP(), config.getTerminationPointConfigPort(), destinationMac, config.getFlowDuration() * 1000);
+	}
 
 	private boolean isPartOfTest(byte[] source, byte[] destination)
 	{
@@ -350,21 +377,35 @@ public class PacketHandler implements IListenDataPacket
 
 		Packet l2pkt = dataPacketService.decodeDataPacket(inPkt);
 
+		// Examine sampled packets.
 		if (SampledFlowPacket.isSampledFlowPacket(l2pkt))
 		{
+			NodeConnector ingressConnector = inPkt.getIncomingNodeConnector();
 			CloudMACRecord records[] = SampledFlowPacket.getCloudMACRecords(l2pkt);
+			long timestamp = System.currentTimeMillis();
 			
 			for (CloudMACRecord record : records)
 			{
 				byte[] sourceMac = record.getE80211Header().getSourceAddress();
+				byte[] destinationMac = record.getE80211Header().getSourceAddress();
 				byte[] bssidMac = record.getE80211Header().getBssidAddress();
 				short signal = record.getRadiotap().getAntennaSignal();
 				
 				if (!Arrays.equals(sourceMac, bssidMac))
 				{
 					MobileTerminalTunnel tunnel = tunnels.get(sourceMac);
+					NodeConnector bestSource;					
 					
+					tunnel.reportSignal(ingressConnector, signal, timestamp);
 					
+					bestSource = tunnel.getBestSignalSource(timestamp);
+					
+					if (bestSource != ingressConnector)
+					{
+						// Perform handover.
+						handover(tunnel, ingressConnector, sourceMac, destinationMac);
+					}
+					// TODO: refresh tunnels periodically.
 				}
 			}
 			
@@ -560,7 +601,8 @@ public class PacketHandler implements IListenDataPacket
 							}
 							else
 							{
-								// TODO: Handle handover between known WTPs.
+								// Perform handover.
+								handover(tunnel, ingressConnector, sourceMac, destinationMac);
 							}
 						}
 						else

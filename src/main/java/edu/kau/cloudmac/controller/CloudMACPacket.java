@@ -17,7 +17,7 @@ public class CloudMACPacket
 		{
 			offset += HEADER_802_1Q_LENGTH;
 		}
-		offset += (int)((data[offset + 2] << 8) | data[offset + 1]); // Add radiotap header length.
+		offset += (int)((data[offset + 1] << 8) | data[offset + 2]); // Add radiotap header length.
 
 		// We don't need the first 2 bits (protocol version).
 		type += data[offset] & 0b11111111;
