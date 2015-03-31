@@ -14,6 +14,7 @@ public class CloudMacConfig {
 	private short tunnelPriority;
 	private short beaconPriority;
 	private short termiantionPointConfigPort;
+	private short handoverThreshold;
 	
 	public CloudMacConfig()
 	{
@@ -149,4 +150,17 @@ public class CloudMacConfig {
 	{
 		this.termiantionPointConfigPort = value;
 	}
+	
+	public short getHandoverThreshold()
+	{
+		return handoverThreshold;
+	}
+	
+	public void setHandoverThreshold(short value)
+	{
+		this.handoverThreshold = value;
+	}
+	
+	
+	
 }

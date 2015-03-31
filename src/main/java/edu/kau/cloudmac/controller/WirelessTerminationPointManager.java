@@ -9,7 +9,7 @@ import org.slf4j.LoggerFactory;
 
 public class WirelessTerminationPointManager
 {
-	private static final Logger log = LoggerFactory.getLogger(AccessPointManager.class);
+	private static final Logger log = LoggerFactory.getLogger(WirelessTerminationPointManager.class);
 	LinkedList<WirelessTerminationPoint> wtps;
 
 	public WirelessTerminationPointManager()
@@ -95,7 +95,7 @@ public class WirelessTerminationPointManager
 			}
 			if (element.getExpiration() < now)
 			{
-				log.info("WTP has expired {}/{}. ", element.getConnector());
+				log.info("WTP has expired {}/{}. ", element.getConnector(), element.getIP());
 
 				iter.remove();
 			}

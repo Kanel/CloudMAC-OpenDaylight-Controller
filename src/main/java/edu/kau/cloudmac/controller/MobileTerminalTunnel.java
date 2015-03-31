@@ -11,12 +11,12 @@ public class MobileTerminalTunnel
 	protected long expiration;
 	protected SignalAnalyser analyser;
 
-	public MobileTerminalTunnel(Endpoint source, AccessPoint ap, long expiration)
+	public MobileTerminalTunnel(Endpoint source, AccessPoint ap, long expiration, short handoverThreshold)
 	{
 		this.source = source;
 		this.ap = ap;
 		this.expiration = expiration;
-		this.analyser = new SignalAnalyser();
+		this.analyser = new SignalAnalyser(handoverThreshold);
 	}
 
 	public Endpoint getSource()
@@ -56,7 +56,7 @@ public class MobileTerminalTunnel
 	
 	public NodeConnector getBestSignalSource(long timestamp)
 	{
-		return analyser.getBest(source.getConnector(), timestamp);		
+		return analyser.getCandidate(source.getConnector());		
 	}
 
 	@Override

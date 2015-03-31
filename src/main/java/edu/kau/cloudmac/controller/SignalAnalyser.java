@@ -2,37 +2,19 @@ package edu.kau.cloudmac.controller;
 
 import java.util.LinkedList;
 import java.util.List;
+import java.util.ListIterator;
 
 import org.opendaylight.controller.sal.core.NodeConnector;
 
 public class SignalAnalyser
 {
-	protected List<Triple<NodeConnector, Short, Long>> signals;
+	private short handoverThreshold;
+	protected List<Triple<NodeConnector, Double, Long>> signals;
 	
-	public SignalAnalyser()
+	public SignalAnalyser(short handoverThreshold)
 	{
-		signals = new LinkedList<>();
-	}
-	
-	private short decay(short value, long deltaTime)
-	{
-		return (short)(value / (2 * deltaTime) / 10000);
-	}
-	
-	private void update(long timestamp)
-	{
-		for (int i = 0; i < signals.size(); i++)
-		{
-			long deltaTime = timestamp - signals.get(i).getC();
-			
-			if (deltaTime != 0)
-			{
-				signals.get(i).setB(decay(signals.get(i).getB(), deltaTime));
-				signals.get(i).setC(timestamp);
-			}
-			
-			// TODO: Remove old ones.
-		}
+		this.handoverThreshold = handoverThreshold;
+		this.signals = new LinkedList<>();
 	}
 	
 	public void report(NodeConnector connector, short signal, long timestamp)
@@ -40,24 +22,24 @@ public class SignalAnalyser
 		for (int i = 0; i < signals.size(); i++)
 		{
 			if (signals.get(i).getA().equals(connector))
-			{
-				long deltaTime = timestamp - signals.get(i).getC();	
+			{				
+				double rssi = signals.get(i).getB() * 0.2 + signal * 0.8;
 				
-				signals.get(i).setB(decay(signals.get(i).getB(), deltaTime));
+				signals.get(i).setB(rssi);
 				signals.get(i).setC(timestamp);
 				
 				return;
 			}
 		}
-		signals.add(new Triple<NodeConnector, Short, Long>(connector, signal, timestamp));
+		signals.add(new Triple<NodeConnector, Double, Long>(connector, signal * 0.8, timestamp));
 	}
 	
-	public NodeConnector getBest(NodeConnector connector, long timestamp)
+	public NodeConnector getCandidate(NodeConnector connector)
 	{
-		Triple<NodeConnector, Short, Long> current = null;
-		Triple<NodeConnector, Short, Long> best = signals.get(0);
+		Triple<NodeConnector, Double, Long> current = null;
+		Triple<NodeConnector, Double, Long> candidate = signals.get(0);
 		
-		update(timestamp);
+		cleanup();
 		
 		for (int i = 0; i < signals.size(); i++)
 		{
@@ -66,19 +48,33 @@ public class SignalAnalyser
 				current = signals.get(i);
 			}
 			
-			if (signals.get(i).getB() > best.getB())
+			if (signals.get(i).getB() > candidate.getB())
 			{
-				best = signals.get(i);
+				candidate = signals.get(i);
 			}
 		}
 		
-		if (current.getB() * 1.05 < best.getB())
+		if (current != null && current.getB() + handoverThreshold < candidate.getB())
 		{
-			return best.getA();
+			return candidate.getA();
 		}
 		else
 		{
 			return current.getA();
+		}
+	}
+	
+	private void cleanup()
+	{
+		long now = System.currentTimeMillis();
+
+		for (ListIterator<Triple<NodeConnector, Double, Long>> iter = signals.listIterator(); iter.hasNext(); ) {
+			Triple<NodeConnector, Double, Long> element = iter.next();
+
+		    if (element.getC() < now)
+			{
+				iter.remove();
+			}
 		}
 	}
 }

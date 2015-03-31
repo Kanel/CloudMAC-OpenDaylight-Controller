@@ -3,6 +3,7 @@ package edu.kau.cloudmac.controller;
 import edu.kau.cloudmac.CloudMACRecord;
 import edu.kau.ini.Parser;
 
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Map;
 
@@ -33,13 +34,14 @@ public class PacketHandler implements IListenDataPacket
 	// TODO: keep track of the number of acking interfaces in use by each WTP.
 	public PacketHandler()
 	{
-		accessPoints = new AccessPointManager();
-		tunnels = new TunnelManager();
+		accessPoints = new AccessPointManager();		
 		wtps = new WirelessTerminationPointManager();
 		flowUtil = new FlowUtility(null, null);
 		config = new CloudMacConfig();
 		
 		loadConfig();
+		
+		tunnels = new TunnelManager(config.getHandoverThreshold());
 	}
 	
 	void loadConfig()
@@ -259,6 +261,21 @@ public class PacketHandler implements IListenDataPacket
 			log.warn("Missing config: terminationPointConfigPort");
 		}
 		log.info("terminationPointConfigPort: {}", config.getTerminationPointConfigPort());
+		
+		// ------------------------------------------------
+		// Handover dBm Threshold
+		// ------------------------------------------------
+		if (settings.containsKey("handoverThreshold"))
+		{
+			config.setHandoverThreshold(Short.parseShort(settings.get("handoverThreshold")));
+		}
+		else
+		{
+			config.setHandoverThreshold((short) 5);
+			
+			log.warn("Missing config: handoverThreshold");
+		}
+		log.info("handoverThreshold: {}", config.getHandoverThreshold());
 	}
 
 	void setDataPacketService(IDataPacketService s)
@@ -388,19 +405,19 @@ public class PacketHandler implements IListenDataPacket
 			{
 				byte[] sourceMac = record.getE80211Header().getSourceAddress();
 				byte[] destinationMac = record.getE80211Header().getSourceAddress();
-				byte[] bssidMac = record.getE80211Header().getBssidAddress();
-				short signal = record.getRadiotap().getAntennaSignal();
+				byte[] bssidMac = record.getE80211Header().getBssidAddress();				
 				
-				if (!Arrays.equals(sourceMac, bssidMac))
+				if (!Arrays.equals(sourceMac, bssidMac) && tunnels.contains(sourceMac))
 				{
-					MobileTerminalTunnel tunnel = tunnels.get(sourceMac);
-					NodeConnector bestSource;					
+					MobileTerminalTunnel tunnel = tunnels.get(sourceMac);					
+					NodeConnector bestSource;
+					short signal = record.getRadiotap().getAntennaSignal();
 					
 					tunnel.reportSignal(ingressConnector, signal, timestamp);
-					
+					                                                                                                  
 					bestSource = tunnel.getBestSignalSource(timestamp);
 					
-					if (bestSource != ingressConnector)
+					if (!bestSource.equals(ingressConnector))
 					{
 						// Perform handover.
 						handover(tunnel, ingressConnector, sourceMac, destinationMac);
@@ -415,9 +432,10 @@ public class PacketHandler implements IListenDataPacket
 		{
 			NodeConnector ingressConnector = inPkt.getIncomingNodeConnector();
 			Ethernet ethPkt = (Ethernet)l2pkt;
-			// Source and Destination should properly be retrieved from the frame rather than the Ethernet header.
+			// Source and Destination should properly be retrieved from the frame rather than the Ethernet header.	
 			byte[] sourceMac = ethPkt.getSourceMACAddress();
 			byte[] destinationMac = ethPkt.getDestinationMACAddress();
+			
 			byte[] broadcast = new byte[] { (byte)0xFF, (byte)0xFF, (byte)0xFF, (byte)0xFF, (byte)0xFF, (byte)0xFF };
 
 			// Special announce packet that reveals the presence of a WTP and which IP that can be used to configure it.
@@ -600,9 +618,30 @@ public class PacketHandler implements IListenDataPacket
 								flowUtil.ActivateAckingAsync(wtp.getIP(), config.getTerminationPointConfigPort(), destinationMac, config.getFlowDuration() * 1000);
 							}
 							else
-							{
+							{		
+								ByteBuffer buffer = ByteBuffer.wrap(ethPkt.getRawPayload());
+								CloudMACRecord record = CloudMACRecord.parse(buffer);	
+								byte[] frameSourceMac = record.getE80211Header().getSourceAddress();
+								byte[] frameBssidMac = record.getE80211Header().getBssidAddress();
+								
 								// Perform handover.
-								handover(tunnel, ingressConnector, sourceMac, destinationMac);
+								if (!Arrays.equals(frameSourceMac, frameBssidMac))
+								{
+										NodeConnector bestSource;
+										long timestamp = System.currentTimeMillis();
+										short signal = record.getRadiotap().getAntennaSignal();
+										
+										tunnel.reportSignal(ingressConnector, signal, timestamp);
+										                                                                                                  
+										bestSource = tunnel.getBestSignalSource(timestamp);
+										
+										if (!bestSource.equals(ingressConnector))
+										{
+											// Perform handover.
+											handover(tunnel, ingressConnector, sourceMac, destinationMac);
+										}
+										// TODO: refresh tunnels periodically.
+								}
 							}
 						}
 						else

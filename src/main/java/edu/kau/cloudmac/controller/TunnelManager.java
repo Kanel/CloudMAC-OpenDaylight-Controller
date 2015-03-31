@@ -10,22 +10,24 @@ import org.slf4j.LoggerFactory;
 
 public class TunnelManager
 {
+	private short handoverThreshold;
 	private static final Logger log = LoggerFactory.getLogger(TunnelManager.class);
 	LinkedList<MobileTerminalTunnel> mobileTerminals;
 
-	public TunnelManager()
+	public TunnelManager(short handoverThreshold)
 	{
-		mobileTerminals = new LinkedList<MobileTerminalTunnel>();
+		this.handoverThreshold = handoverThreshold;
+		this.mobileTerminals = new LinkedList<MobileTerminalTunnel>();
 	}
 
 	public void add(NodeConnector connector, byte[] mac, AccessPoint ap, long expiration)
 	{
-		mobileTerminals.add(new MobileTerminalTunnel(new Endpoint(connector, mac.clone()), ap, expiration));
+		mobileTerminals.add(new MobileTerminalTunnel(new Endpoint(connector, mac.clone()), ap, expiration, handoverThreshold));
 	}
 
 	public void remove(byte[] mac)
 	{
-		mobileTerminals.remove(new MobileTerminalTunnel(new Endpoint(null, mac), null, 0));
+		mobileTerminals.remove(new MobileTerminalTunnel(new Endpoint(null, mac), null, 0, (short)0));
 	}
 
 	public boolean contains(byte[] mac)
