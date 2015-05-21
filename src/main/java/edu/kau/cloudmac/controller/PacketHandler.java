@@ -373,7 +373,7 @@ public class PacketHandler implements IListenDataPacket
 	private boolean isPartOfTest(byte[] source, byte[] destination)
 	{
 		byte[] mobileClient1 = new byte[] { 0, 38, 90, 11, 54, 124 }; // D-Link (mine)
-		byte[] mobileClient2 = new byte[] { 0x74, 0x2f, 0x68, (byte) 0xd2, 0x43, 0x17 }; // Jonathan's laptop
+		byte[] mobileClient2 = new byte[] { 0, 0x1f, 0x3b, (byte)0xd4, 0x16, 0x31 }; // Laptop
 
 		return 	Arrays.equals(source, mobileClient1) 
 			 || Arrays.equals(source, mobileClient2)
@@ -404,12 +404,12 @@ public class PacketHandler implements IListenDataPacket
 			for (CloudMACRecord record : records)
 			{
 				byte[] sourceMac = record.getE80211Header().getSourceAddress();
-				byte[] destinationMac = record.getE80211Header().getSourceAddress();
+				byte[] destinationMac = record.getE80211Header().getDestinationAddress();
 				byte[] bssidMac = record.getE80211Header().getBssidAddress();				
 				
 				if (!Arrays.equals(sourceMac, bssidMac) && tunnels.contains(sourceMac))
 				{
-					MobileTerminalTunnel tunnel = tunnels.get(sourceMac);					
+					MobileTerminalTunnel tunnel = tunnels.get(sourceMac);
 					NodeConnector bestSource;
 					short signal = record.getRadiotap().getAntennaSignal();
 					
@@ -463,208 +463,312 @@ public class PacketHandler implements IListenDataPacket
 			else
 			{
 				FrameTypes frameType = FrameTypes.lookup(CloudMACPacket.getFrameType(inPkt.getPacketData()));
-
+	
 				log.trace("CloudMAC packet recieved, frame type: {}, {}", frameType, CloudMACPacket.getFrameType(inPkt.getPacketData()));
-
-				// Handle Routing, and WTP, and VAP discovery.
-				switch (frameType)
+				
+				if (wtps.contains(inPkt.getIncomingNodeConnector()) || frameType == FrameTypes.Management_Beacon)
 				{
-				case Management_Beacon:
-					if (accessPoints.contains(CloudMACPacket.getAddress3(inPkt.getPacketData())))
+					// Handle Routing, and WTP, and VAP discovery.
+					switch (frameType)
 					{
-						log.trace("Reseting access point expiration {}/{}.", ingressConnector, sourceMac);
-
-						// Refresh access point status.
-						accessPoints.get(sourceMac).setExpiration(System.currentTimeMillis() + config.getAccessPointExpiration());
-					}
-					else
-					{
-						log.info("Discovered new access point {}/{}.", ingressConnector, sourceMac);
-
-						// New access point discovered.
-
-						accessPoints.add(ingressConnector, CloudMACPacket.getAddress3(inPkt.getPacketData()), System.currentTimeMillis() + config.getAccessPointExpiration());
-					}
-
-					// Route beacons to WTPs to allow their presence to be easily detected, only if the access point isn't in use.
-					if (!tunnels.containsAccessPoint(sourceMac))
-					{
-						if (wtps.hasFree())
+					case Management_Beacon:
+						if (accessPoints.contains(CloudMACPacket.getAddress3(inPkt.getPacketData())))
 						{
-							WirelessTerminationPoint wtp =  wtps.allocate(System.currentTimeMillis() + config.getTerminationPointExpiration());
-
-							log.trace("Adding beacon tunnel {}", sourceMac, destinationMac);
-
-							flowUtil.createBeaconTunnel(ingressConnector, wtp.getConnector(), sourceMac, config.getEthernetTypes()[3], config.getBeaconPriority(), config.getQueueIndices()[3], config.getFlowDuration());
+							log.trace("Reseting access point expiration {}/{}.", ingressConnector, sourceMac);
+	
+							// Refresh access point status.
+							accessPoints.get(sourceMac).setExpiration(System.currentTimeMillis() + config.getAccessPointExpiration());
 						}
 						else
 						{
-							log.trace("Blocking beacon frames from access point({}).", sourceMac);
-
-							flowUtil.block(ingressConnector, sourceMac, destinationMac, config.getEthernetTypes(), (short)(config.getBlockPriority() + 10), config.getBlockFlowDuration());
+							log.info("Discovered new access point {}/{}.", ingressConnector, sourceMac);
+	
+							// New access point discovered.
+	
+							accessPoints.add(ingressConnector, CloudMACPacket.getAddress3(inPkt.getPacketData()), System.currentTimeMillis() + config.getAccessPointExpiration());
 						}
-					}
-					break;
-
-				case Management_Probe_Request:
-					if (!isPartOfTest(sourceMac, destinationMac))
-					{
-						log.trace("Not part of test, blocking frames from {} to {}.", sourceMac, destinationMac);
-
-						flowUtil.block(ingressConnector, sourceMac, destinationMac, config.getEthernetTypes(), (short)(config.getBlockPriority() + 9), config.getBlockFlowDuration());
-
-						break;
-					}
-
-					if (!tunnels.contains(sourceMac))
-					{
-						if (accessPoints.hasFree())
+	
+						// Route beacons to WTPs to allow their presence to be easily detected, only if the access point isn't in use.
+						if (!tunnels.containsAccessPoint(sourceMac))
 						{
-							AccessPoint ap = accessPoints.allocate(System.currentTimeMillis() + config.getTunnelExpiration());
-							WirelessTerminationPoint wtp = wtps.get(ingressConnector);
-
-							log.trace("Adding tunnel {} <-> {}", sourceMac, ap.getMacAdress());
-
-							tunnels.add(ingressConnector, sourceMac, ap, System.currentTimeMillis() + config.getTunnelExpiration());
-							flowUtil.createTunnel(ingressConnector, ap.getConnector(), sourceMac, ap.getMacAdress(), config.getEthernetTypes(), config.getQueueIndices(), config.getTunnelPriority(), config.getFlowDuration(), config.getGraceDuration());
-							flowUtil.ActivateAckingAsync(wtp.getIP(), config.getTerminationPointConfigPort(), ap.getMacAdress(), config.getFlowDuration() * 1000);
+							if (wtps.hasFree())
+							{
+								WirelessTerminationPoint wtp =  wtps.allocate(System.currentTimeMillis() + config.getTerminationPointExpiration());
+	
+								log.trace("Adding beacon tunnel {}", sourceMac, destinationMac);
+	
+								flowUtil.createBeaconTunnel(ingressConnector, wtp.getConnector(), sourceMac, config.getEthernetTypes()[3], config.getBeaconPriority(), config.getQueueIndices()[3], config.getFlowDuration());
+							}
+							else
+							{
+								log.trace("Blocking beacon frames from access point({}).", sourceMac);
+	
+								flowUtil.block(ingressConnector, sourceMac, destinationMac, config.getEthernetTypes(), (short)(config.getBlockPriority() + 10), config.getBlockFlowDuration());
+							}
+						}
+						break;
+	
+					case Management_Probe_Request:
+						if (!isPartOfTest(sourceMac, destinationMac))
+						{
+							log.trace("Not part of test, blocking frames from {} to {}.", sourceMac, destinationMac);
+	
+							flowUtil.block(ingressConnector, sourceMac, destinationMac, config.getEthernetTypes(), (short)(config.getBlockPriority() + 9), config.getBlockFlowDuration());
+	
+							break;
+						}
+	
+						if (!tunnels.contains(sourceMac))
+						{
+							if (accessPoints.hasFree())
+							{
+								AccessPoint ap = accessPoints.allocate(System.currentTimeMillis() + config.getTunnelExpiration());
+								WirelessTerminationPoint wtp = wtps.get(ingressConnector);
+	
+								log.trace("Adding tunnel {} <-> {}", sourceMac, ap.getMacAdress());
+	
+								tunnels.add(ingressConnector, sourceMac, ap, System.currentTimeMillis() + config.getTunnelExpiration());
+								flowUtil.createTunnel(ingressConnector, ap.getConnector(), sourceMac, ap.getMacAdress(), config.getEthernetTypes(), config.getQueueIndices(), config.getTunnelPriority(), config.getFlowDuration(), config.getGraceDuration());
+								flowUtil.ActivateAckingAsync(wtp.getIP(), config.getTerminationPointConfigPort(), ap.getMacAdress(), config.getFlowDuration() * 1000);
+							}
+							else
+							{
+								log.warn("No available access point.");
+							}
 						}
 						else
 						{
-							log.warn("No available access point.");
-						}
-					}
-					break;
-
-				case Management_Association_request:
-					if (!isPartOfTest(sourceMac, destinationMac))
-					{
-						log.trace("Not part of test, blocking frames from {} to {}.", sourceMac, destinationMac);
-
-						flowUtil.block(ingressConnector, sourceMac, destinationMac, config.getEthernetTypes(), (short)(config.getBlockPriority() + 8), config.getBlockFlowDuration());
-
-						break;
-					}
-
-					if (tunnels.contains(sourceMac))
-					{
-						byte[] mac = tunnels.get(sourceMac).getAccessPoint().getMacAdress();
-
-						if (destinationMac[2] != mac[2] ||
-							destinationMac[3] != mac[3] ||
-							destinationMac[4] != mac[4] ||
-							destinationMac[5] != mac[5])
-						{
-							log.trace("Blocking frames from {} to {}.", sourceMac, destinationMac);
-
-							flowUtil.block(ingressConnector, sourceMac, destinationMac, config.getEthernetTypes(), (short)(config.getBlockPriority() + 7), config.getBlockFlowDuration());
-						}
-						// TODO: Handle case of client trying to connect to another VAP. For now just block it.
-					}
-					else
-					{
-						if (accessPoints.contains(destinationMac))
-						{
+							MobileTerminalTunnel tunnel = tunnels.get(sourceMac);
 							AccessPoint accessPoint = accessPoints.get(destinationMac);
 							WirelessTerminationPoint wtp = wtps.get(ingressConnector);
-
-							if (!accessPoint.isAllocated())
+	
+							if (tunnel.getAccessPoint().equals(accessPoint))
 							{
-								log.trace("Creating tunnel {} <-> {}", sourceMac, accessPoint.getMacAdress());
-
-								accessPoint.allocate(System.currentTimeMillis() + config.getTunnelExpiration());
-								tunnels.add(ingressConnector, sourceMac, accessPoint, System.currentTimeMillis() + config.getTunnelExpiration());
-								flowUtil.createTunnel(ingressConnector, accessPoint.getConnector(), sourceMac, accessPoint.getMacAdress(), config.getEthernetTypes(), config.getQueueIndices(), config.getTunnelPriority(), config.getFlowDuration(), config.getGraceDuration());
-								flowUtil.ActivateAckingAsync(wtp.getIP(), config.getTerminationPointConfigPort(), destinationMac, config.getFlowDuration() * 1000);
+								if (tunnel.getSource().getConnector().equals(ingressConnector)) // Is the frame coming from the same WTP as before?
+								{
+									long expiration = System.currentTimeMillis();
+	
+									log.trace("Extedning tunnel lease {} <-> {}", sourceMac, destinationMac);
+	
+									// Extend tunnel "lease".
+									accessPoint.setAllocationExpiration(expiration + config.getTunnelExpiration());
+									tunnel.setExpiration(expiration + config.getTunnelExpiration());
+									flowUtil.createTunnel(ingressConnector, accessPoint.getConnector(), sourceMac, accessPoint.getMacAdress(), config.getEthernetTypes(), config.getQueueIndices(), config.getTunnelPriority(), config.getFlowDuration(), config.getGraceDuration());
+									flowUtil.ActivateAckingAsync(wtp.getIP(), config.getTerminationPointConfigPort(), destinationMac, config.getFlowDuration() * 1000);
+								}
+								else
+								{		
+									ByteBuffer buffer = ByteBuffer.wrap(ethPkt.getRawPayload());
+									CloudMACRecord record = CloudMACRecord.parse(buffer);	
+									byte[] frameSourceMac = record.getE80211Header().getSourceAddress();
+									byte[] frameBssidMac = record.getE80211Header().getBssidAddress();
+									
+									// Perform handover.
+									if (!Arrays.equals(frameSourceMac, frameBssidMac))
+									{
+											NodeConnector bestSource;
+											long timestamp = System.currentTimeMillis();
+											short signal = record.getRadiotap().getAntennaSignal();
+											
+											tunnel.reportSignal(ingressConnector, signal, timestamp);
+											                                                                                                  
+											bestSource = tunnel.getBestSignalSource(timestamp);
+											
+											if (!bestSource.equals(ingressConnector))
+											{
+												// Perform handover.
+												handover(tunnel, ingressConnector, sourceMac, destinationMac);
+											}
+											// TODO: refresh tunnels periodically.
+									}
+								}
+							}
+						}
+						break;
+	
+					case Management_Association_request:
+						if (!isPartOfTest(sourceMac, destinationMac))
+						{
+							log.trace("Not part of test, blocking frames from {} to {}.", sourceMac, destinationMac);
+	
+							flowUtil.block(ingressConnector, sourceMac, destinationMac, config.getEthernetTypes(), (short)(config.getBlockPriority() + 8), config.getBlockFlowDuration());
+	
+							break;
+						}
+	
+						if (tunnels.contains(sourceMac))
+						{
+							byte[] mac = tunnels.get(sourceMac).getAccessPoint().getMacAdress();
+	
+							if (destinationMac[2] != mac[2] ||
+								destinationMac[3] != mac[3] ||
+								destinationMac[4] != mac[4] ||
+								destinationMac[5] != mac[5])
+							{
+								log.trace("Blocking frames from {} to {}.", sourceMac, destinationMac);
+	
+								flowUtil.block(ingressConnector, sourceMac, destinationMac, config.getEthernetTypes(), (short)(config.getBlockPriority() + 7), config.getBlockFlowDuration());
+								
+								// TODO: Handle case of client trying to connect to another VAP. For now just block it.
+							}
+							else
+							{
+								MobileTerminalTunnel tunnel = tunnels.get(sourceMac);
+								AccessPoint accessPoint = accessPoints.get(destinationMac);
+								WirelessTerminationPoint wtp = wtps.get(ingressConnector);
+	
+								if (tunnel.getSource().getConnector().equals(ingressConnector)) // Is the frame coming from the same WTP as before?
+								{
+									long expiration = System.currentTimeMillis();
+	
+									log.trace("Extedning tunnel lease {} <-> {}", sourceMac, destinationMac);
+	
+									// Extend tunnel "lease".
+									accessPoint.setAllocationExpiration(expiration + config.getTunnelExpiration());
+									tunnel.setExpiration(expiration + config.getTunnelExpiration());
+									flowUtil.createTunnel(ingressConnector, accessPoint.getConnector(), sourceMac, accessPoint.getMacAdress(), config.getEthernetTypes(), config.getQueueIndices(), config.getTunnelPriority(), config.getFlowDuration(), config.getGraceDuration());
+									flowUtil.ActivateAckingAsync(wtp.getIP(), config.getTerminationPointConfigPort(), destinationMac, config.getFlowDuration() * 1000);
+								}
+								else
+								{		
+									ByteBuffer buffer = ByteBuffer.wrap(ethPkt.getRawPayload());
+									CloudMACRecord record = CloudMACRecord.parse(buffer);	
+									byte[] frameSourceMac = record.getE80211Header().getSourceAddress();
+									byte[] frameBssidMac = record.getE80211Header().getBssidAddress();
+									
+									// Perform handover.
+									if (!Arrays.equals(frameSourceMac, frameBssidMac))
+									{
+											NodeConnector bestSource;
+											long timestamp = System.currentTimeMillis();
+											short signal = record.getRadiotap().getAntennaSignal();
+											
+											tunnel.reportSignal(ingressConnector, signal, timestamp);
+											                                                                                                  
+											bestSource = tunnel.getBestSignalSource(timestamp);
+											
+											if (!bestSource.equals(ingressConnector))
+											{
+												// Perform handover.
+												handover(tunnel, ingressConnector, sourceMac, destinationMac);
+											}
+											// TODO: refresh tunnels periodically.
+									}
+								}							
+							}
+						}
+						else
+						{
+							if (accessPoints.contains(destinationMac))
+							{
+								AccessPoint accessPoint = accessPoints.get(destinationMac);
+								WirelessTerminationPoint wtp = wtps.get(ingressConnector);
+	
+								if (!accessPoint.isAllocated())
+								{
+									log.trace("Creating tunnel {} <-> {}", sourceMac, accessPoint.getMacAdress());
+	
+									accessPoint.allocate(System.currentTimeMillis() + config.getTunnelExpiration());
+									tunnels.add(ingressConnector, sourceMac, accessPoint, System.currentTimeMillis() + config.getTunnelExpiration());
+									flowUtil.createTunnel(ingressConnector, accessPoint.getConnector(), sourceMac, accessPoint.getMacAdress(), config.getEthernetTypes(), config.getQueueIndices(), config.getTunnelPriority(), config.getFlowDuration(), config.getGraceDuration());
+									flowUtil.ActivateAckingAsync(wtp.getIP(), config.getTerminationPointConfigPort(), destinationMac, config.getFlowDuration() * 1000);
+								}
+								else
+								{
+									log.trace("Blocking frames from {} to {}.", sourceMac, destinationMac);
+	
+									// Access point is in use, nothing we can do other than ignore the packets.
+									flowUtil.block(ingressConnector, sourceMac, destinationMac, config.getEthernetTypes(), (short)(config.getBlockPriority() + 1), config.getBlockFlowDuration());
+								}
 							}
 							else
 							{
 								log.trace("Blocking frames from {} to {}.", sourceMac, destinationMac);
-
-								// Access point is in use, nothing we can do other than ignore the packets.
-								flowUtil.block(ingressConnector, sourceMac, destinationMac, config.getEthernetTypes(), (short)(config.getBlockPriority() + 1), config.getBlockFlowDuration());
+	
+								// This is not our problem, simply block these packets.
+								flowUtil.block(ingressConnector, sourceMac, destinationMac, config.getEthernetTypes(), (short)(config.getBlockPriority() + 2), config.getBlockFlowDuration());
 							}
 						}
-						else
+						break;
+	
+					default:
+						// Does the traffic belong to a known tunnel?
+						if (tunnels.contains(sourceMac) && accessPoints.contains(destinationMac))
 						{
-							log.trace("Blocking frames from {} to {}.", sourceMac, destinationMac);
-
-							// This is not our problem, simply block these packets.
-							flowUtil.block(ingressConnector, sourceMac, destinationMac, config.getEthernetTypes(), (short)(config.getBlockPriority() + 2), config.getBlockFlowDuration());
-						}
-					}
-					break;
-
-				default:
-					// Does the traffic belong to a known tunnel?
-					if (tunnels.contains(sourceMac) && accessPoints.contains(destinationMac))
-					{
-						MobileTerminalTunnel tunnel = tunnels.get(sourceMac);
-						AccessPoint accessPoint = accessPoints.get(destinationMac);
-						WirelessTerminationPoint wtp = wtps.get(ingressConnector);
-
-						if (tunnel.getAccessPoint().equals(accessPoint))
-						{
-							if (tunnel.getSource().getConnector().equals(ingressConnector)) // Is the frame coming from the same WTP as before?
+							MobileTerminalTunnel tunnel = tunnels.get(sourceMac);
+							AccessPoint accessPoint = accessPoints.get(destinationMac);
+							WirelessTerminationPoint wtp = wtps.get(ingressConnector);
+	
+							if (tunnel.getAccessPoint().equals(accessPoint))
 							{
-								long expiration = System.currentTimeMillis();
-
-								log.trace("Extedning tunnel lease {} <-> {}", sourceMac, destinationMac);
-
-								// Extend tunnel "lease".
-								accessPoint.setAllocationExpiration(expiration + config.getTunnelExpiration());
-								tunnel.setExpiration(expiration + config.getTunnelExpiration());
-								flowUtil.createTunnel(ingressConnector, accessPoint.getConnector(), sourceMac, accessPoint.getMacAdress(), config.getEthernetTypes(), config.getQueueIndices(), config.getTunnelPriority(), config.getFlowDuration(), config.getGraceDuration());
-								flowUtil.ActivateAckingAsync(wtp.getIP(), config.getTerminationPointConfigPort(), destinationMac, config.getFlowDuration() * 1000);
-							}
-							else
-							{		
-								ByteBuffer buffer = ByteBuffer.wrap(ethPkt.getRawPayload());
-								CloudMACRecord record = CloudMACRecord.parse(buffer);	
-								byte[] frameSourceMac = record.getE80211Header().getSourceAddress();
-								byte[] frameBssidMac = record.getE80211Header().getBssidAddress();
-								
-								// Perform handover.
-								if (!Arrays.equals(frameSourceMac, frameBssidMac))
+								if (tunnel.getSource().getConnector().equals(ingressConnector)) // Is the frame coming from the same WTP as before?
 								{
-										NodeConnector bestSource;
-										long timestamp = System.currentTimeMillis();
-										short signal = record.getRadiotap().getAntennaSignal();
-										
-										tunnel.reportSignal(ingressConnector, signal, timestamp);
-										                                                                                                  
-										bestSource = tunnel.getBestSignalSource(timestamp);
-										
-										if (!bestSource.equals(ingressConnector))
-										{
-											// Perform handover.
-											handover(tunnel, ingressConnector, sourceMac, destinationMac);
-										}
-										// TODO: refresh tunnels periodically.
+									long expiration = System.currentTimeMillis();
+	
+									log.trace("Extedning tunnel lease {} <-> {}", sourceMac, destinationMac);
+	
+									// Extend tunnel "lease".
+									accessPoint.setAllocationExpiration(expiration + config.getTunnelExpiration());
+									tunnel.setExpiration(expiration + config.getTunnelExpiration());
+									flowUtil.createTunnel(ingressConnector, accessPoint.getConnector(), sourceMac, accessPoint.getMacAdress(), config.getEthernetTypes(), config.getQueueIndices(), config.getTunnelPriority(), config.getFlowDuration(), config.getGraceDuration());
+									flowUtil.ActivateAckingAsync(wtp.getIP(), config.getTerminationPointConfigPort(), destinationMac, config.getFlowDuration() * 1000);
+								}
+								else
+								{		
+									ByteBuffer buffer = ByteBuffer.wrap(ethPkt.getRawPayload());
+									CloudMACRecord record = CloudMACRecord.parse(buffer);	
+									byte[] frameSourceMac = record.getE80211Header().getSourceAddress();
+									byte[] frameBssidMac = record.getE80211Header().getBssidAddress();
+									
+									// Perform handover.
+									if (!Arrays.equals(frameSourceMac, frameBssidMac))
+									{
+											NodeConnector bestSource;
+											long timestamp = System.currentTimeMillis();
+											short signal = record.getRadiotap().getAntennaSignal();
+											
+											tunnel.reportSignal(ingressConnector, signal, timestamp);
+											                                                                                                  
+											bestSource = tunnel.getBestSignalSource(timestamp);
+											
+											if (!bestSource.equals(ingressConnector))
+											{
+												// Perform handover.
+												handover(tunnel, ingressConnector, sourceMac, destinationMac);
+											}
+											// TODO: refresh tunnels periodically.
+									}
 								}
 							}
+							else
+							{
+								log.trace("Blocking frames from {} to {}.", sourceMac, destinationMac);
+	
+								// Client tries to send data to a VAP it's not associated with, not allowed, block it.
+								flowUtil.block(ingressConnector, sourceMac, destinationMac, config.getEthernetTypes(), (short)(config.getBlockPriority() + 4), config.getBlockFlowDuration());
+							}
 						}
 						else
 						{
 							log.trace("Blocking frames from {} to {}.", sourceMac, destinationMac);
-
-							// Client tries to send data to a VAP it's not associated with, not allowed, block it.
-							flowUtil.block(ingressConnector, sourceMac, destinationMac, config.getEthernetTypes(), (short)(config.getBlockPriority() + 4), config.getBlockFlowDuration());
+	
+							// Unknown traffic possibly from another network, you can end up here if a tunnel times out but the client or access point still sends traffic.
+							flowUtil.block(ingressConnector, sourceMac, destinationMac, config.getEthernetTypes(), (short)(config.getBlockPriority() + 5), config.getBlockFlowDuration());
 						}
+						break;
 					}
-					else
-					{
-						log.trace("Blocking frames from {} to {}.", sourceMac, destinationMac);
+				}
+				else
+				{
+					log.trace("Blocking frames from {} to {}.", sourceMac, destinationMac);
 
-						// Unknown traffic possibly from another network, you can end up here if a tunnel times out but the client or access point still sends traffic.
-						flowUtil.block(ingressConnector, sourceMac, destinationMac, config.getEthernetTypes(), (short)(config.getBlockPriority() + 5), config.getBlockFlowDuration());
-					}
-					break;
+					// This should not happen. CloudMAC packets detected on non VAP/WTP port.
+					flowUtil.block(ingressConnector, sourceMac, destinationMac, config.getEthernetTypes(), (short)(config.getBlockPriority() + 5), config.getBlockFlowDuration());
 				}
 			}
 			// TODO: Handle CloudMAC controller crash.
 			return PacketResult.CONSUME;
-		}
+		}			
 		else
 		{
 			// Not our problem!
